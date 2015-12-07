@@ -1512,44 +1512,53 @@ Sclose.argtypes = [POINTER(IOSTREAM)]
 PL_unify_stream = _lib.PL_unify_stream
 PL_unify_stream.argtypes = [term_t, POINTER(IOSTREAM)]
 
-# create an exit hook which captures the exit code for our cleanup function
+
+class _State(object):
+    """Module state."""
+    is_available = False  # True if prolog engine can accept API calls.
+
+# External code can monitor this to ensure API calls are not made after
+# the Prolog session is cleaned up.
+state = _State()
 
 
-class ExitHook(object):
+class PrologError(Exception):
+    pass
 
-    def __init__(self):
-        self.exit_code = None
-        self.exception = None
 
-    def hook(self):
-        self._orig_exit = sys.exit
-        sys.exit = self.exit
+def _initialize():
+    args = []
+    args.append("./")
+    args.append("-q")          # --quiet
+    args.append("-nosignals")  # "Inhibit any signal handling by Prolog"
+    if SWI_HOME_DIR is not None:
+        args.append("--home=%s" % SWI_HOME_DIR)
 
-    def exit(self, code=0):
-        self.exit_code = code
-        self._orig_exit(code)
+    result = PL_initialise(len(args), list_to_bytes_list(args))
+    # result is a boolean variable (i.e. 0 or 1) indicating whether the
+    # initialisation was successful or not.
+    if not result:
+        raise PrologError("Could not initialize Prolog environment."
+                          "PL_initialise returned %d" % result)
 
-_hook = ExitHook()
-_hook.hook()
+    swipl_fid = PL_open_foreign_frame()
+    swipl_load = PL_new_term_ref()
+    PL_chars_to_term(
+        "asserta(pyrun(GoalString,BindingList) :- "
+        "(atom_chars(A,GoalString),"
+        "atom_to_term(A,Goal,BindingList),"
+        "call(Goal))).".encode(), swipl_load)
+    PL_call(swipl_load, None)
+    PL_discard_foreign_frame(swipl_fid)
+    global state
+    state.is_available = True
 
-_isCleaned = False
-# create a property for Atom's delete method in order to avoid
-# segmentation fault
-cleaned = property(_isCleaned)
-
-# register the cleanup function to be executed on system exit
+_initialize()
 
 
 @atexit.register
-def cleanupProlog():
-    # only do something if prolog has been initialised
-    if PL_is_initialised(None, None):
-
-        # clean up the prolog system using the caught exit code
-        # if exit code is None, the program exits normally and we can use 0
-        # instead.
-        # TODO Prolog documentation says cleanup with code 0 may be interrupted
-        # If the program has come to an end the prolog system should not
-        # interfere with that. Therefore we may want to use 1 instead of 0.
-        PL_cleanup(int(_hook.exit_code or 0))
-        _isCleaned = True
+def cleanup_prolog():
+    # There is a PL_cleanup function but according to the SWI documentation,
+    # it does nothing useful.
+    global state
+    state.is_available = False
