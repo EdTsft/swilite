@@ -136,6 +136,7 @@ __all__ = [
     'Query',
     'Term',
     'TermList',
+    'TermRecord',
 ]
 
 
