@@ -895,6 +895,14 @@ class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
         return "Functor(name={name!r}, arity={arity!r})".format(
             name=self.get_name(), arity=self.get_arity())
 
+    def __eq__(self, other):
+        return (type(self) == type(other) and
+                self.get_name() == other.get_name() and
+                self.get_arity() == other.get_arity())
+
+    def __hash__(self):
+        return hash((self.get_name(), self.get_arity()))
+
     def get_name(self):
         """The functor's name as an `Atom` object."""
         return Atom._from_handle(PL_functor_name(self._handle))
@@ -919,6 +927,12 @@ class Module(HandleWrapper, ConstantHandleToConstantMixIn):
 
     def __repr__(self):
         return 'Module(name={name!r})'.format(name=self.get_name())
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.get_name() == other.get_name()
+
+    def __hash__(self):
+        return hash(self.get_name())
 
     @classmethod
     def current_context(cls):
@@ -954,7 +968,8 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
                 If ``None``, uses the current context module.
         """
         return cls._from_handle(handle=PL_predicate(
-            name.encode(), arity, module_name))
+            name.encode(), arity,
+            module_name.encode() if module_name is not None else None))
 
     def __str__(self):
         info = self.get_info()
@@ -969,6 +984,12 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
         return 'Predicate(functor={functor!r}, module={module!r})'.format(
             functor=Functor(name=info.name, arity=info.arity),
             module=info.module)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.get_info() == other.get_info()
+
+    def __hash__(self):
+        return hash(self.get_info())
 
     def __call__(self, arguments, goal_context_module=None, check=False):
         """Call predicate with arguments.
@@ -1004,18 +1025,19 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
     Info = namedtuple('Info', ['name', 'arity', 'module'])
 
     def get_info(self):
-        """Returns name, arity, and module of this predicate (`Predicate.Info`)
+        """Returns name, arity, and module of this predicate.
+
+        Returns:
+            Predicate.Info:
         """
         name = atom_t()
         arity = c_int()
         module = module_t()
         PL_predicate_info(self._handle,
                           byref(name), byref(arity), byref(module))
-        return self.Info(name=(Atom._from_handle(name.value)
-                               if name.value is not None else None),
+        return self.Info(name=Atom._from_handle(name.value),
                          arity=arity.value,
-                         module=(Module._from_handle(module.value)
-                                 if module.value is not None else None))
+                         module=Module._from_handle(module.value))
 
     def check_argument_match(self, arguments):
         """Check that the right number of arguments are given.
