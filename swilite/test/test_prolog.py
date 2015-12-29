@@ -1,8 +1,9 @@
 import copy
 
-from nose.tools import assert_equal, assert_not_equal
+from nose.tools import assert_equal, assert_not_equal, assert_raises
 
-from swilite.prolog import (Atom, Functor, Module, Predicate, Term)
+from swilite.prolog import (Atom, CallError, Functor, Module, Predicate, Term,
+                            TermList)
 
 
 def check_atom(name, atom=None):
@@ -223,6 +224,42 @@ def test_predicate():
     check_predicate('', 2)
     check_predicate('foo', 1)
     check_predicate('foo', 0)
+
+
+def check_predicate_call_succ(a, b, check, variable):
+    succ = Predicate(Functor('succ', 2))
+
+    args = TermList(2)
+    if variable == 'first':
+        args[1].put_integer(b)
+    elif variable == 'second':
+        args[0].put_integer(a)
+    elif variable == 'none':
+        args[0].put_integer(a)
+        args[1].put_integer(b)
+    else:
+        assert False
+
+    if not check:
+        result = succ(args)
+        assert_equal(result, variable != 'none' or (a + 1) == b)
+    elif variable == 'none' and (a + 1) != b:
+        with assert_raises(CallError):
+            succ(args, check=True)
+    else:
+        succ(args, check=True)
+
+    if variable == 'first':
+        assert_equal(int(args[0]), b - 1)
+    elif variable == 'second':
+        assert_equal(int(args[1]), a + 1)
+
+
+def test_predicate__call__():
+    for (a, b) in [(0, 1), (4, 5), (0, 2), (5, 4)]:
+        for check in [True, False]:
+            for variable in ['first', 'second', 'none']:
+                yield check_predicate_call_succ, a, b, check, variable
 
 
 def test_term__init__():
