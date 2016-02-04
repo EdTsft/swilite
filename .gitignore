@@ -1,3 +1,6 @@
+# Project Config
+setup.cfg
+
 # Vim
 *.swp
 *.swo
@@ -12,3 +15,7 @@ __pycache__/
 
 # Profiling
 *.prof
+
+# Code Coverage
+.coverage
+cover/
