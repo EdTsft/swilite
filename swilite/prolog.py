@@ -141,7 +141,7 @@ __all__ = [
 
 
 class PrologException(Exception):
-    """An exception raised wiithin the Prolog system."""
+    """An exception raised within the Prolog system."""
     def __init__(self, exception_term):
         self.exception_term = exception_term
 
@@ -266,7 +266,7 @@ class Term(HandleWrapper):
         if not isinstance(key, int):
             raise TypeError('Indices must be integers.')
         if key < 0:
-            raise IndexError('Indicies must be non-negative integers.')
+            raise IndexError('Indices must be non-negative integers.')
         if not self.is_compound():
             raise TypeError('Indexing is only supported for compound types.')
         _, arity = self.get_compound_name_arity()
@@ -495,7 +495,7 @@ class Term(HandleWrapper):
         """The name and arity of this term, if it is a compound term or an atom.
 
         Compound terms with arity 0 give the same result as an atom.
-        To distingush them use `is_compound` and/or `get_compound_name_arity`.
+        To distinguish them use `is_compound` and/or `get_compound_name_arity`.
 
         Returns:
             NameArity: namedtuple (name, arity)
@@ -590,7 +590,7 @@ class Term(HandleWrapper):
         return tail
 
     def get_nil(self):
-        """Succeds if this term represents the list termination constant (nil).
+        """Succeeds if this term represents the list termination constant (nil).
 
         Raises:
             AssertionError: If this term does not represent nil.
@@ -1064,7 +1064,7 @@ class Query(object):
     def __init__(self, predicate, arguments, goal_context_module=None):
         """Prepare a query.
 
-        A query conssists of a predicate (`predicate`) and a list of arguments
+        A query consists of a predicate (`predicate`) and a list of arguments
         (`arguments`). Each solution is an assignment to variables in
         `arguments` that satisfies the predicate.
 
@@ -1202,7 +1202,7 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
         self._bound_temporary_terms = []
 
     def close(self):
-        """Close the query and destory all data and bindings associated with it.
+        """Close the query and destroy all data and bindings associated with it.
         """
         PL_close_query(self._handle)
         self.invalidate()
@@ -1220,7 +1220,7 @@ def _get_nullable_handle(handle_wrapper):
 
 
 class TermRecord(HandleWrapper):
-    """Records a Prolog Term so that it can be retreived later.
+    """Records a Prolog Term so that it can be retrieved later.
 
     This persists across backtracks, unlike `Term` itself.
     """
