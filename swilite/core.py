@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
-
-
-# pyswip -- Python SWI-Prolog bridge
 # Original Copyright (c) 2007-2012 Yüce Tekol
-# Modifications Copyright (c) 2015 Eric Langlois
+# Modifications Copyright (c) 2015-2016 Eric Langlois
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +20,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# Declarations from SWI-Prolog.h, SWI Prolog version 7.2.3
 
 import os
 import re
