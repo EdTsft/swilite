@@ -451,47 +451,102 @@ c_long_p = c_void_p
 c_double_p = c_void_p
 c_uint_p = c_void_p
 
-# constants (from SWI-Prolog.h)
-# PL_unify_term() arguments
-PL_VARIABLE = 1  # nothing
-PL_ATOM = 2  # const char
-PL_INTEGER = 3  # int
-PL_FLOAT = 4  # double
-PL_STRING = 5  # const char *
-PL_TERM = 6  #
+#                  /*******************************
+#                  *      TERM-TYPE CONSTANTS        *
+#                  *******************************/
+#                                         /* PL_unify_term() arguments */
+# define PL_VARIABLE      (1)             /* nothing */
+PL_VARIABLE = 1
+# define PL_ATOM          (2)             /* const char * */
+PL_ATOM = 2
+# define PL_INTEGER       (3)             /* int */
+PL_INTEGER = 3
+# define PL_FLOAT         (4)             /* double */
+PL_FLOAT = 4
+# define PL_STRING        (5)             /* const char * */
+PL_STRING = 5
+# define PL_TERM          (6)
+PL_TERM = 6
 
+# define PL_NIL           (7)             /* The constant [] */
 PL_NIL = 7
+# define PL_BLOB          (8)             /* non-atom blob */
 PL_BLOB = 8
+# define PL_LIST_PAIR     (9)             /* [_|_] term */
 PL_LIST_PAIR = 9
 
-# PL_unify_term()
-PL_FUNCTOR = 10  # functor_t, arg ...
-PL_LIST = 11  # length, arg ...
-PL_CHARS = 12  # const char *
-PL_POINTER = 13  # void *
-#               /* PlArg::PlArg(text, type) */
-# define PL_CODE_LIST     (14)       /* [ascii...] */
-# define PL_CHAR_LIST     (15)       /* [h,e,l,l,o] */
-# define PL_BOOL      (16)       /* PL_set_feature() */
-# define PL_FUNCTOR_CHARS (17)       /* PL_unify_term() */
-# define _PL_PREDICATE_INDICATOR (18)    /* predicate_t (Procedure) */
-# define PL_SHORT     (19)       /* short */
-# define PL_INT       (20)       /* int */
-# define PL_LONG      (21)       /* long */
-# define PL_DOUBLE    (22)       /* double */
-# define PL_NCHARS    (23)       /* unsigned, const char * */
-# define PL_UTF8_CHARS    (24)       /* const char * */
-# define PL_UTF8_STRING   (25)       /* const char * */
-# define PL_INT64     (26)       /* int64_t */
-# define PL_NUTF8_CHARS   (27)       /* unsigned, const char * */
-# define PL_NUTF8_CODES   (29)       /* unsigned, const char * */
-# define PL_NUTF8_STRING  (30)       /* unsigned, const char * */
-# define PL_NWCHARS   (31)       /* unsigned, const wchar_t * */
-# define PL_NWCODES   (32)       /* unsigned, const wchar_t * */
-# define PL_NWSTRING  (33)       /* unsigned, const wchar_t * */
-# define PL_MBCHARS   (34)       /* const char * */
-# define PL_MBCODES   (35)       /* const char * */
-# define PL_MBSTRING  (36)       /* const char * */
+#                                         /* PL_unify_term() */
+# define PL_FUNCTOR       (10)            /* functor_t, arg ... */
+PL_FUNCTOR = 10
+# define PL_LIST          (11)            /* length, arg ... */
+PL_LIST = 11
+# define PL_CHARS         (12)            /* const char * */
+PL_CHARS = 12
+# define PL_POINTER       (13)            /* void * */
+PL_POINTER = 13
+#                                         /* PlArg::PlArg(text, type) */
+# define PL_CODE_LIST     (14)            /* [ascii...] */
+PL_CODE_LIST = 14
+# define PL_CHAR_LIST     (15)            /* [h,e,l,l,o] */
+PL_CHAR_LIST = 15
+# define PL_BOOL          (16)            /* PL_set_prolog_flag() */
+PL_BOOL = 16
+# define PL_FUNCTOR_CHARS (17)            /* PL_unify_term() */
+PL_FUNCTOR_CHARS = 17
+# define _PL_PREDICATE_INDICATOR (18)     /* predicate_t (Procedure) */
+_PL_PREDICATE_INDICATOR = 18
+# define PL_SHORT         (19)            /* short */
+PL_SHORT = 19
+# define PL_INT           (20)            /* int */
+PL_INT = 20
+# define PL_LONG          (21)            /* long */
+PL_LONG = 21
+# define PL_DOUBLE        (22)            /* double */
+PL_DOUBLE = 22
+# define PL_NCHARS        (23)            /* size_t, const char * */
+PL_NCHARS = 23
+# define PL_UTF8_CHARS    (24)            /* const char * */
+PL_UTF8_CHARS = 24
+# define PL_UTF8_STRING   (25)            /* const char * */
+PL_UTF8_STRING = 25
+# define PL_INT64         (26)            /* int64_t */
+PL_INT64 = 26
+# define PL_NUTF8_CHARS   (27)            /* size_t, const char * */
+PL_NUTF8_CHARS = 27
+# define PL_NUTF8_CODES   (29)            /* size_t, const char * */
+PL_NUTF8_CODES = 29
+# define PL_NUTF8_STRING  (30)            /* size_t, const char * */
+PL_NUTF8_STRING = 30
+# define PL_NWCHARS       (31)            /* size_t, const wchar_t * */
+PL_NWCHARS = 31
+# define PL_NWCODES       (32)            /* size_t, const wchar_t * */
+PL_NWCODES = 32
+# define PL_NWSTRING      (33)            /* size_t, const wchar_t * */
+PL_NWSTRING = 33
+# define PL_MBCHARS       (34)            /* const char * */
+PL_MBCHARS = 34
+# define PL_MBCODES       (35)            /* const char * */
+PL_MBCODES = 35
+# define PL_MBSTRING      (36)            /* const char * */
+PL_MBSTRING = 36
+# define PL_INTPTR        (37)            /* intptr_t */
+PL_INTPTR = 37
+# define PL_CHAR          (38)            /* int */
+PL_CHAR = 38
+# define PL_CODE          (39)            /* int */
+PL_CODE = 39
+# define PL_BYTE          (40)            /* int */
+PL_BYTE = 40
+#                                         /* PL_skip_list() */
+# define PL_PARTIAL_LIST  (41)            /* a partial list */
+PL_PARTIAL_LIST = 41
+# define PL_CYCLIC_TERM   (42)            /* a cyclic list/term */
+PL_CYCLIC_TERM = 42
+# define PL_NOT_A_LIST    (43)            /* Object is not a list */
+PL_NOT_A_LIST = 43
+#                                         /* dicts */
+# define PL_DICT          (44)
+PL_DICT = 44
 
 #       /********************************
 #       * NON-DETERMINISTIC CALL/RETURN *
