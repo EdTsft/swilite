@@ -16,14 +16,11 @@ from swilite.core import (
     CVT_WRITE,
     PL_ATOM,
     PL_BLOB,
-    PL_CHARS,
+    PL_DICT,
     PL_FLOAT,
-    PL_FUNCTOR,
     PL_INTEGER,
-    PL_LIST,
     PL_LIST_PAIR,
     PL_NIL,
-    PL_POINTER,
     PL_Q_CATCH_EXCEPTION,
     PL_Q_NODEBUG,
     PL_STRING,
@@ -116,14 +113,11 @@ _term_type_code_name = {
     PL_INTEGER: 'integer',
     PL_FLOAT: 'float',
     PL_STRING: 'string',
-    PL_TERM: 'term',
+    PL_TERM: 'compound',
     PL_NIL: 'nil',
     PL_BLOB: 'blob',
     PL_LIST_PAIR: 'list-pair',
-    PL_FUNCTOR: 'functor',
-    PL_LIST: 'list',
-    PL_CHARS: 'chars',
-    PL_POINTER: 'pointer',
+    PL_DICT: 'dict',
 }
 
 __all__ = [
@@ -247,7 +241,13 @@ class Term(HandleWrapper):
     def __eq__(self, other):
         args = TermList(2)
         args[0].put_term(self)
-        args[1].put_term(other)
+        try:
+            args[1].put_term(other)
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
+
         return _term_equality_predicate(args)
 
     def __int__(self):
@@ -262,19 +262,20 @@ class Term(HandleWrapper):
         """Creates a new Prolog term, copied from the old."""
         return self.from_term_copy(self)
 
-    def __getitem__(self, key):
-        if not isinstance(key, int):
-            raise TypeError('Indices must be integers.')
-        if key < 0:
-            raise IndexError('Indices must be non-negative integers.')
-        if not self.is_compound():
-            raise TypeError('Indexing is only supported for compound types.')
-        _, arity = self.get_compound_name_arity()
-        if key >= arity:
-            raise IndexError(
-                'Index out of range. ({index} >= term arity {arity})'.format(
-                    index=key, arity=arity))
-        return self.get_arg(key)
+    # TODO remove? It is not obvious what this does.
+    # def __getitem__(self, key):
+    #     if not self.is_compound():
+    #         raise TypeError('Indexing is only supported for compound types.')
+    #     if not isinstance(key, int):
+    #         raise TypeError('Indices must be integers.')
+    #     if key < 0:
+    #         raise IndexError('Indices must be non-negative integers.')
+    #     arity = self.get_compound_name_arity().arity
+    #     if key >= arity:
+    #         raise IndexError(
+    #             'Index out of range. ({index} >= term arity {arity})'.format(
+    #                 index=key, arity=arity))
+    #     return self.get_arg(key)
 
     @classmethod
     def from_term_copy(cls, term):
@@ -295,10 +296,7 @@ class Term(HandleWrapper):
             * ``nil``
             * ``blob``
             * ``list-pair``
-            * ``functor``
-            * ``list``
-            * ``chars``
-            * ``pointer``
+            * ``dict``
         """
         type_code = PL_term_type(self._handle)
         return _term_type_code_name[type_code]
@@ -369,8 +367,7 @@ class Term(HandleWrapper):
 
         The list terminator is the constant ``[]``.
         """
-        self._require_success(
-            PL_get_nil(self._handle))
+        return bool(PL_get_nil(self._handle))
 
     def is_number(self):
         """True if this term is an integer or float."""
@@ -429,7 +426,7 @@ class Term(HandleWrapper):
     def get_string_chars(self):
         """The value of this term as a string, if it is a prolog string."""
         s = POINTER(c_char)()
-        length = c_int()
+        length = c_size_t()
         self._require_success_expecting_type(
             PL_get_string_chars(self._handle, byref(s), byref(length)),
             'string')
@@ -660,7 +657,7 @@ class Term(HandleWrapper):
             PL_put_float(self._handle, val))
 
     def put_functor(self, functor):
-        """Put a compound term created from functor in this term.
+        """Put a compound term created from a functor in this term.
 
         The arguments of the compound term are __TEMPORARY__ variables.
         To create a term with instantiated arguments or with persistent
@@ -696,7 +693,7 @@ class Term(HandleWrapper):
         PL_put_term(self._handle, term._handle)
 
     def put_parsed(self, string):
-        """Parse `string` as Prolog as place the result in this term.
+        """Parse `string` as Prolog and place the result in this term.
 
         Args:
             string (str): A term string in Prolog syntax.
