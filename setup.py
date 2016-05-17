@@ -10,4 +10,9 @@ setup(
     url='https://github.com/EdTsft/swilite',
     packages=['swilite'],
     description='A light-weight object-oriented interface to SWI-Prolog.',
+    install_requires=[],
+    test_suite='nose.collector',
+    tests_require=[
+        'nose',
+    ]
 )
