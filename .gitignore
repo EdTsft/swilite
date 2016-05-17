@@ -11,6 +11,8 @@ setup.cfg
 # Python
 *.egg-info
 *.pyc
+.eggs/
+.venv
 __pycache__/
 
 # Profiling
