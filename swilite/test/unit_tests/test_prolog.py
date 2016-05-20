@@ -241,13 +241,13 @@ def check_predicate_call_succ(a, b, check, variable):
         assert False
 
     if not check:
-        result = succ(args)
+        result = succ(arglist=args)
         assert_equal(result, variable != 'none' or (a + 1) == b)
     elif variable == 'none' and (a + 1) != b:
         with assert_raises(CallError):
-            succ(args, check=True)
+            succ(arglist=args, check=True)
     else:
-        succ(args, check=True)
+        succ(arglist=args, check=True)
 
     if variable == 'first':
         assert_equal(int(args[0]), b - 1)

@@ -140,6 +140,10 @@ __all__ = [
 ]
 
 
+# TODO: Foreign frames
+# TODO: Unifications
+
+
 class PrologException(Exception):
     """An exception raised within the Prolog system."""
     def __init__(self, exception_term):
@@ -245,6 +249,8 @@ class Term(HandleWrapper):
             value=self.get_chars())
 
     def __eq__(self, other):
+        """Check if two terms have the same value. Does not perform unification.
+        """
         args = TermList(2)
         args[0].put_term(self)
         args[1].put_term(other)
@@ -532,18 +538,22 @@ class Term(HandleWrapper):
         return Module._from_handle(module.value)
 
     def get_arg(self, index):
-        """An argument of this term, if this term is compound.
+        """A new term with a reference to an argument of this term.
 
         Args:
             index (int): Index of the argument.
                 Index is 0-based, unlike in Prolog.
 
         Returns:
-            Term:
+            Term: A new term reference to the argument.
 
         Raises:
             AssertionError: If `index` is out of bounds or
                 if this term is not compound.
+
+        Note: This returns a _new_ term, not a the argument term itself.
+            Therefore, using `put_*` methods on the return value will not change
+            the argument itself, while unification will.
         """
         t = Term()
         self._require_success(
@@ -809,6 +819,13 @@ class TermList(HandleWrapper):
         self._length = length
         super().__init__(handle=PL_new_term_refs(length))
 
+    @classmethod
+    def from_terms(cls, *terms):
+        termlist = cls(len(terms))
+        for i, term in enumerate(terms):
+            termlist[i].put_term(term)
+        return termlist
+
     def __eq__(self, other):
         return (super().__eq__(other) and self._length == other._length)
 
@@ -903,6 +920,15 @@ class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
     def __hash__(self):
         return hash((self.get_name(), self.get_arity()))
 
+    def __call__(self, *args):
+        """Returns a new compound term created from this functor and `args`.
+
+        The length of `args` must be the same as the arity of `functor`.
+        See `Term.from_cons_functor`.
+        """
+        return Term.from_cons_functor(self, *args)
+
+
     def get_name(self):
         """The functor's name as an `Atom` object."""
         return Atom._from_handle(PL_functor_name(self._handle))
@@ -991,14 +1017,18 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
     def __hash__(self):
         return hash(self.get_info())
 
-    def __call__(self, arguments, goal_context_module=None, check=False):
+    def __call__(self, *arguments, arglist=None, goal_context_module=None,
+                 check=False):
         """Call predicate with arguments.
 
         Finds a binding for arguments that satisfies the predicate.
         Like Query but only finds the first solution.
 
         Args:
-            arguments (TermList)        : List of arguments to this predicate.
+            *arguments (Term)           : Terms to pass as arguments to this
+                predicate.
+            arglist (TermList)          : Arguments to this predicate.
+                Cannot pass both arguments and arglist.
             goal_context_module (Module): Context module of the goal.
                 If ``None``, the current context module is used, or ``user`` if
                 there is no context. This only matters for meta_predicates.
@@ -1011,12 +1041,17 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             PrologException: If an exception was raised in Prolog.
             CallError      : If the call failed and `check` is ``True``.
         """
-        self.check_argument_match(arguments)
+        if arglist is None:
+            arglist = TermList.from_terms(*arguments)
+        elif arguments:
+            raise ValueError('Cannot provide both "arguments" and "arglist".')
+
+        self.check_argument_match(arglist)
         success = bool(PL_call_predicate(
             _get_nullable_handle(goal_context_module),
             PL_Q_NODEBUG | PL_Q_CATCH_EXCEPTION,
             self._handle,
-            arguments._handle))
+            arglist._handle))
 
         if check and not success:
             raise CallError(str(self))
@@ -1250,9 +1285,6 @@ class TermRecord(HandleWrapper):
 
 _term_equality_predicate = Predicate.from_name_arity(name='==', arity=2)
 
-_debug_predicate = Predicate.from_name_arity(name='prolog_debug', arity=1)
-args = TermList(1)
-args[0].put_atom(Atom('chk_secure'))
-_debug_predicate(args)
-args[0].put_atom(Atom('msg_signal'))
-_debug_predicate(args)
+# _debug_predicate = Predicate(Functor('prolog_debug', 1))
+# _debug_predicate(Term.from_atom(Atom('chk_secure')))
+# _debug_predicate(Term.from_atom(Atom('msg_signal')))

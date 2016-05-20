@@ -1,4 +1,4 @@
-from .prolog import Term, Functor, Atom
+from .prolog import Term, Functor, Atom, Predicate
 
 
 def consult(filename):
