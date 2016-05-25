@@ -148,6 +148,7 @@ __all__ = [
 class PrologException(Exception):
     """An exception raised within the Prolog system."""
     def __init__(self, exception_term):
+        super().__init__()
         self.exception_term = exception_term
 
     def __str__(self):
@@ -160,6 +161,7 @@ class PrologException(Exception):
 class CallError(Exception):
     """A call failed."""
     def __init__(self, msg):
+        super().__init__()
         self.msg = msg
 
     def __str__(self):
@@ -172,6 +174,7 @@ class PrologMemoryError(Exception):
 
 
 class HandleWrapper(object):
+    """Class wrapping a handle."""
     def __init__(self, handle):
         self._handle = handle
 
@@ -193,7 +196,7 @@ class HandleWrapper(object):
         return new_obj
 
     def __eq__(self, other):
-        return type(self) == type(other) and self._handle == other._handle
+        return type(self) is type(other) and self._handle == other._handle
 
     def __ne__(self, other):
         return not self == other
@@ -217,6 +220,7 @@ class TemporaryHandleMixIn(object):
     _handle = property(fget=_get_handle, fset=_set_handle)
 
     def _invalidate(self):
+        """Invalidate the handle."""
         self._valid = False
 
 
@@ -264,7 +268,7 @@ class Atom(HandleWrapper):
     def __eq__(self, other):
         # Atoms can be deleted and the handles re-assigned so check name instead
         # of handle.
-        return type(self) == type(other) and self.get_name() == other.get_name()
+        return type(self) is type(other) and self.get_name() == other.get_name()
 
     def __hash__(self):
         return hash(self.get_name())
@@ -300,7 +304,7 @@ class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
             name=self.get_name(), arity=self.get_arity())
 
     def __eq__(self, other):
-        return (type(self) == type(other) and
+        return (type(self) is type(other) and
                 self.get_name() == other.get_name() and
                 self.get_arity() == other.get_arity())
 
@@ -342,7 +346,7 @@ class Module(HandleWrapper, ConstantHandleToConstantMixIn):
         return 'Module(name={name!r})'.format(name=self.get_name())
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.get_name() == other.get_name()
+        return type(self) is type(other) and self.get_name() == other.get_name()
 
     def __hash__(self):
         return hash(self.get_name())
@@ -367,7 +371,7 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             module (Module)  : Module containing the functor.
                 If ``None``, uses the current context module.
         """
-        return super().__init__(
+        super().__init__(
             handle=PL_pred(functor._handle, _get_nullable_handle(module)))
 
     @classmethod
@@ -399,7 +403,7 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             module=info.module)
 
     def __eq__(self, other):
-        return type(self) == type(other) and self.get_info() == other.get_info()
+        return type(self) is type(other) and self.get_info() == other.get_info()
 
     def __hash__(self):
         return hash(self.get_info())
@@ -482,6 +486,7 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
 
 
 class Term(HandleWrapper):
+    """Prolog Term Interface."""
     _equality_predicate = Predicate.from_name_arity(name='==', arity=2)
     _logical_or_functor = Functor(';', 2)
     _logical_and_functor = Functor(',', 2)
@@ -1084,7 +1089,7 @@ class TermList(HandleWrapper):
         return termlist
 
     def __eq__(self, other):
-        return (super().__eq__(other) and self._length == other._length)
+        return super().__eq__(other) and self._length == other._length
 
     def __str__(self):
         return str(list(self))
@@ -1268,7 +1273,7 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
         self._invalidate()
 
     def __repr__(self):
-        return ('ActiveQuery(handle_={handle!r})'.format(handle=self._handle))
+        return 'ActiveQuery(handle_={handle!r})'.format(handle=self._handle)
 
 
 def _get_nullable_handle(handle_wrapper):
