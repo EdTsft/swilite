@@ -16,14 +16,11 @@ from swilite.core import (
     CVT_WRITE,
     PL_ATOM,
     PL_BLOB,
-    PL_CHARS,
+    PL_DICT,
     PL_FLOAT,
-    PL_FUNCTOR,
     PL_INTEGER,
-    PL_LIST,
     PL_LIST_PAIR,
     PL_NIL,
-    PL_POINTER,
     PL_Q_CATCH_EXCEPTION,
     PL_Q_NODEBUG,
     PL_STRING,
@@ -134,14 +131,11 @@ _term_type_code_name = {
     PL_INTEGER: 'integer',
     PL_FLOAT: 'float',
     PL_STRING: 'string',
-    PL_TERM: 'term',
+    PL_TERM: 'compound',
     PL_NIL: 'nil',
     PL_BLOB: 'blob',
     PL_LIST_PAIR: 'list-pair',
-    PL_FUNCTOR: 'functor',
-    PL_LIST: 'list',
-    PL_CHARS: 'chars',
-    PL_POINTER: 'pointer',
+    PL_DICT: 'dict',
 }
 
 __all__ = [
@@ -210,7 +204,12 @@ class HandleWrapper(object):
         return new_obj
 
     def __eq__(self, other):
-        return type(self) is type(other) and self._handle == other._handle
+        try:
+            return type(self) is type(other) and self._handle == other._handle
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
 
     def __ne__(self, other):
         return not self == other
@@ -282,7 +281,13 @@ class Atom(HandleWrapper):
     def __eq__(self, other):
         # Atoms can be deleted and the handles re-assigned so check name instead
         # of handle.
-        return type(self) is type(other) and self.get_name() == other.get_name()
+        try:
+            return (type(self) is type(other) and
+                    self.get_name() == other.get_name())
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
 
     def __hash__(self):
         return hash(self.get_name())
@@ -318,9 +323,14 @@ class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
             name=self.get_name(), arity=self.get_arity())
 
     def __eq__(self, other):
-        return (type(self) is type(other) and
-                self.get_name() == other.get_name() and
-                self.get_arity() == other.get_arity())
+        try:
+            return (type(self) is type(other) and
+                    self.get_name() == other.get_name() and
+                    self.get_arity() == other.get_arity())
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
 
     def __hash__(self):
         return hash((self.get_name(), self.get_arity()))
@@ -360,7 +370,13 @@ class Module(HandleWrapper, ConstantHandleToConstantMixIn):
         return 'Module(name={name!r})'.format(name=self.get_name())
 
     def __eq__(self, other):
-        return type(self) is type(other) and self.get_name() == other.get_name()
+        try:
+            return (type(self) is type(other) and
+                    self.get_name() == other.get_name())
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
 
     def __hash__(self):
         return hash(self.get_name())
@@ -417,7 +433,12 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             module=info.module)
 
     def __eq__(self, other):
-        return type(self) is type(other) and self.get_info() == other.get_info()
+        try:
+            return type(self) is type(other) and self.get_info() == other.get_info()
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
 
     def __hash__(self):
         return hash(self.get_info())
@@ -522,7 +543,13 @@ class Term(HandleWrapper):
     def __eq__(self, other):
         """Check if two terms have the same value. Does not perform unification.
         """
-        return self._equality_predicate(self, other)
+        try:
+            return self._equality_predicate(self, other)
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
+
 
     def __or__(self, other):
         """Logical OR of two terms."""
@@ -544,23 +571,6 @@ class Term(HandleWrapper):
         """Creates a new Prolog term, copied from the old."""
         return self.from_term_copy(self)
 
-    def __getitem__(self, key):
-        self._check_compound_index(key)
-        return self.get_arg(key)
-
-    def _check_compound_index(self, index):
-        if not isinstance(index, int):
-            raise TypeError('Indices must be integers.')
-        if index < 0:
-            raise IndexError('Indices must be non-negative integers.')
-        if not self.is_compound():
-            raise TypeError('Indexing is only supported for compound types.')
-        _, arity = self.get_compound_name_arity()
-        if index >= arity:
-            raise IndexError(
-                'Index out of range. ({index} >= term arity {arity})'.format(
-                    index=index, arity=arity))
-
     @classmethod
     def from_term_copy(cls, term):
         """Create a new term as a copy of an existing one."""
@@ -580,10 +590,7 @@ class Term(HandleWrapper):
             * ``nil``
             * ``blob``
             * ``list-pair``
-            * ``functor``
-            * ``list``
-            * ``chars``
-            * ``pointer``
+            * ``dict``
         """
         type_code = PL_term_type(self._handle)
         return _term_type_code_name[type_code]
@@ -654,8 +661,7 @@ class Term(HandleWrapper):
 
         The list terminator is the constant ``[]``.
         """
-        self._require_success(
-            PL_get_nil(self._handle))
+        return bool(PL_get_nil(self._handle))
 
     def is_number(self):
         """True if this term is an integer or float."""
@@ -714,7 +720,7 @@ class Term(HandleWrapper):
     def get_string_chars(self):
         """The value of this term as a string, if it is a prolog string."""
         s = POINTER(c_char)()
-        length = c_int()
+        length = c_size_t()
         self._require_success_expecting_type(
             PL_get_string_chars(self._handle, byref(s), byref(length)),
             'string')
@@ -947,7 +953,7 @@ class Term(HandleWrapper):
             PL_put_float(self._handle, val))
 
     def put_functor(self, functor):
-        """Put a compound term created from functor in this term.
+        """Put a compound term created from a functor in this term.
 
         The arguments of the compound term are __TEMPORARY__ variables.
         To create a term with instantiated arguments or with persistent
@@ -983,7 +989,7 @@ class Term(HandleWrapper):
         PL_put_term(self._handle, term._handle)
 
     def put_parsed(self, string):
-        """Parse `string` as Prolog as place the result in this term.
+        """Parse `string` as Prolog and place the result in this term.
 
         Args:
             string (str): A term string in Prolog syntax.
@@ -1239,7 +1245,12 @@ class TermList(HandleWrapper):
         return termlist
 
     def __eq__(self, other):
-        return super().__eq__(other) and self._length == other._length
+        try:
+            return super().__eq__(other) and self._length == other._length
+        except AttributeError as e:
+            if '_handle' not in str(e):
+                raise
+            return NotImplemented
 
     def __str__(self):
         return str(list(self))
