@@ -204,12 +204,9 @@ class HandleWrapper(object):
         return new_obj
 
     def __eq__(self, other):
-        try:
-            return type(self) is type(other) and self._handle == other._handle
-        except AttributeError as e:
-            if '_handle' not in str(e):
-                raise
+        if type(other) is not type(self):
             return NotImplemented
+        return self._handle == other._handle
 
     def __ne__(self, other):
         return not self == other
@@ -279,15 +276,11 @@ class Atom(HandleWrapper):
         return self._from_handle(self._handle)
 
     def __eq__(self, other):
+        if type(other) is not type(self):
+            return NotImplemented
         # Atoms can be deleted and the handles re-assigned so check name instead
         # of handle.
-        try:
-            return (type(self) is type(other) and
-                    self.get_name() == other.get_name())
-        except AttributeError as e:
-            if '_handle' not in str(e):
-                raise
-            return NotImplemented
+        return self.get_name() == other.get_name()
 
     def __hash__(self):
         return hash(self.get_name())
@@ -323,14 +316,10 @@ class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
             name=self.get_name(), arity=self.get_arity())
 
     def __eq__(self, other):
-        try:
-            return (type(self) is type(other) and
-                    self.get_name() == other.get_name() and
-                    self.get_arity() == other.get_arity())
-        except AttributeError as e:
-            if '_handle' not in str(e):
-                raise
+        if type(other) is not type(self):
             return NotImplemented
+        return (self.get_name() == other.get_name() and
+                self.get_arity() == other.get_arity())
 
     def __hash__(self):
         return hash((self.get_name(), self.get_arity()))
@@ -370,13 +359,9 @@ class Module(HandleWrapper, ConstantHandleToConstantMixIn):
         return 'Module(name={name!r})'.format(name=self.get_name())
 
     def __eq__(self, other):
-        try:
-            return (type(self) is type(other) and
-                    self.get_name() == other.get_name())
-        except AttributeError as e:
-            if '_handle' not in str(e):
-                raise
+        if type(other) is not type(self):
             return NotImplemented
+        return self.get_name() == other.get_name()
 
     def __hash__(self):
         return hash(self.get_name())
@@ -433,12 +418,9 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             module=info.module)
 
     def __eq__(self, other):
-        try:
-            return type(self) is type(other) and self.get_info() == other.get_info()
-        except AttributeError as e:
-            if '_handle' not in str(e):
-                raise
-            return NotImplemented
+            if type(other) is not type(self):
+                return NotImplemented
+            return self.get_info() == other.get_info()
 
     def __hash__(self):
         return hash(self.get_info())
