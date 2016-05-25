@@ -7,26 +7,6 @@ def consult(filename):
         Functor(Atom('consult'), 1),
         Term.from_atom_name(filename))()
 
-
-and_functor = Functor(Atom(','), 2)
-
-
-def make_and_term(*terms):
-    """Combine multiple terms into a single term using the ``,`` functor.
-
-    Args:
-        *terms (prolog.Term) : Terms to combine.
-    """
-    if not terms:
-        return Term.from_atom_chars('true')
-
-    combined_term = terms[-1]
-    for term in reversed(terms[:-1]):
-        combined_term = Term.from_cons_functor(
-            and_functor, term, combined_term)
-    return combined_term
-
-
 def make_list_term(*terms):
     """Combine multiple terms into a single list.
 

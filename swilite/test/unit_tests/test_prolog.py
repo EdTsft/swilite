@@ -1,6 +1,7 @@
 import copy
 
-from nose.tools import assert_equal, assert_not_equal, assert_raises
+from nose.tools import (assert_equal, assert_not_equal, assert_raises,
+                        assert_true, assert_false)
 
 from swilite.prolog import (Atom, CallError, Functor, Module, Predicate, Term,
                             TermList)
@@ -265,3 +266,81 @@ def test_predicate__call__():
 def test_term__init__():
     t = Term()
     assert_equal(t.type(), 'variable')
+
+def test_term_atom():
+    foo = Term.from_atom_name('foo')
+    assert_equal(foo.type(), 'atom')
+    assert_equal(str(foo), 'foo')
+
+def test_term__eq__():
+    foo = Term.from_atom_name('foo')
+    assert foo == foo
+
+
+def test_term_equality():
+    a = Term.from_atom_name('a')
+    b = Term.from_atom_name('b')
+    eq = Predicate.from_name_arity('=', 2)
+
+    assert_true(eq(a, a))
+    assert_false(eq(a, b))
+
+
+def test_term_variable_assignment():
+    a = Term.from_atom_name('a')
+    b = Term.from_atom_name('b')
+    eq = Predicate.from_name_arity('=', 2)
+
+    X = Term()
+    assert_true(eq(X, a))
+    assert_equal(X, a)
+    assert_false(eq(X, b))
+
+    assert_true(eq(Term(), b))
+
+    X.put_variable()
+    assert_true(eq(X, b))
+
+def test_term__or__():
+    a = Term.from_atom_name('a')
+    b = Term.from_atom_name('b')
+    eq = Functor('=', 2)
+
+    assert_true((eq(a, b) | eq(a, a))())
+    assert_false((eq(a, b) | eq(b, a))())
+    X = Term()
+    assert_true((eq(X, a) | eq(X, b))())
+    assert X == a or X == b
+
+    assert_equal(str(eq(a, a) | eq(a, b)), 'a=a;a=b')
+
+def test_term__and__():
+    a = Term.from_atom_name('a')
+    b = Term.from_atom_name('b')
+    eq = Functor('=', 2)
+
+    assert_true((eq(a, a) & eq(b, b))())
+    assert_false((eq(a, b) & eq(a, a))())
+    assert_false((eq(a, a) & eq(a, b))())
+
+    X = Term()
+    Y = Term()
+    assert_true((eq(X, a) & eq(Y, a) & eq(X, Y))())
+    assert_equal(X, Y)
+    X.put_variable()
+    Y.put_variable()
+    assert_false((eq(X, a) & eq(X, b))())
+
+    assert_equal(str(eq(a, a) & eq(a, b)), 'a=a,a=b')
+
+def test_term_logic():
+    true = Term.from_atom_name('true')
+    false = Term.from_atom_name('false')
+
+    assert_true(true())
+    assert_false(false())
+    assert_true((true | false)())
+    assert_false((true & false)())
+    assert_false((false & true | false)())
+    assert_true((false & false | true)())
+    assert_false((false & (false | true))())

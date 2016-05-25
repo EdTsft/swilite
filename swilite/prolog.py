@@ -233,7 +233,258 @@ def _decode_ptr_len_string(ptr, length, encoding='utf8'):
     return ptr[:length.value].decode(encoding)
 
 
+class Atom(HandleWrapper):
+    """Prolog Atom Interface"""
+    def __init__(self, name):
+        """Create a named atom."""
+        super().__init__(handle=PL_new_atom(name.encode()))
+
+    @classmethod
+    def _from_handle(cls, handle):
+        """Create an Atom object from an existing atom handle."""
+        new_atom = super()._from_handle(handle)
+        PL_register_atom(new_atom._handle)
+        return new_atom
+
+    def __str__(self):
+        return self.get_name()
+
+    def __repr__(self):
+        return 'Atom(name={name!r})'.format(name=self.get_name())
+
+    def __del__(self):
+        if prolog_state.is_available:
+            PL_unregister_atom(self._handle)
+
+    def __copy__(self):
+        """A new `Atom` object pointing to the same atom."""
+        return self._from_handle(self._handle)
+
+    def __eq__(self, other):
+        # Atoms can be deleted and the handles re-assigned so check name instead
+        # of handle.
+        return type(self) == type(other) and self.get_name() == other.get_name()
+
+    def __hash__(self):
+        return hash(self.get_name())
+
+    def get_name(self):
+        """The atom's name as a string."""
+        return PL_atom_chars(self._handle).decode()
+
+
+class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
+    """Prolog Functor Interface"""
+    def __init__(self, name, arity):
+        """Create a functor.
+
+        Args:
+            name (Atom): Name of the functor.
+                Either Atom object or string, the former is more efficient.
+            arity (int): Arity of the functor.
+        """
+        try:
+            name_handle = name._handle
+        except AttributeError:
+            name_handle = Atom(name=name)._handle
+
+        super().__init__(handle=PL_new_functor(name_handle, arity))
+
+    def __str__(self):
+        return "{name}/{arity}".format(name=self.get_name(),
+                                       arity=self.get_arity())
+
+    def __repr__(self):
+        return "Functor(name={name!r}, arity={arity!r})".format(
+            name=self.get_name(), arity=self.get_arity())
+
+    def __eq__(self, other):
+        return (type(self) == type(other) and
+                self.get_name() == other.get_name() and
+                self.get_arity() == other.get_arity())
+
+    def __hash__(self):
+        return hash((self.get_name(), self.get_arity()))
+
+    def __call__(self, *args):
+        """Returns a new compound term created from this functor and `args`.
+
+        The length of `args` must be the same as the arity of `functor`.
+        See `Term.from_cons_functor`.
+        """
+        return Term.from_cons_functor(self, *args)
+
+
+    def get_name(self):
+        """The functor's name as an `Atom` object."""
+        return Atom._from_handle(PL_functor_name(self._handle))
+
+    def get_arity(self):
+        """The functor's arity as an integer."""
+        return PL_functor_arity(self._handle)
+
+
+class Module(HandleWrapper, ConstantHandleToConstantMixIn):
+    """Prolog Module Interface"""
+    def __init__(self, name):
+        """Finds existing module or creates a new module with given name.
+
+        Args:
+            name (Atom): Name of the module.
+        """
+        super().__init__(handle=PL_new_module(name._handle))
+
+    def __str__(self):
+        return str(self.get_name())
+
+    def __repr__(self):
+        return 'Module(name={name!r})'.format(name=self.get_name())
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.get_name() == other.get_name()
+
+    def __hash__(self):
+        return hash(self.get_name())
+
+    @classmethod
+    def current_context(cls):
+        """Returns the current context module."""
+        return cls._from_handle(PL_context())
+
+    def get_name(self):
+        """The name of the module as an `Atom` object."""
+        return Atom._from_handle(PL_module_name(self._handle))
+
+
+class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
+    """Prolog Predicate Interface"""
+    def __init__(self, functor, module=None):
+        """Create a predicate from a functor.
+
+        Args:
+            functor (Functor): Functor used to create the predicate.
+            module (Module)  : Module containing the functor.
+                If ``None``, uses the current context module.
+        """
+        return super().__init__(
+            handle=PL_pred(functor._handle, _get_nullable_handle(module)))
+
+    @classmethod
+    def from_name_arity(cls, name, arity, module_name=None):
+        """Create a predicate directly from Python's built-in types.
+
+        Args:
+            name (str)       : Name of functor used to create the predicate.
+            arity (int)      : Arity of functor used to create the predicate.
+            module_name (str): Name of module containing the functor.
+                If ``None``, uses the current context module.
+        """
+        return cls._from_handle(handle=PL_predicate(
+            name.encode(), arity,
+            module_name.encode() if module_name is not None else None))
+
+    def __str__(self):
+        info = self.get_info()
+        return '{module_prefix}{name}/{arity}'.format(
+            module_prefix=(str(info.module) + ':'
+                           if info.module is not None else ''),
+            name=info.name,
+            arity=info.arity)
+
+    def __repr__(self):
+        info = self.get_info()
+        return 'Predicate(functor={functor!r}, module={module!r})'.format(
+            functor=Functor(name=info.name, arity=info.arity),
+            module=info.module)
+
+    def __eq__(self, other):
+        return type(self) == type(other) and self.get_info() == other.get_info()
+
+    def __hash__(self):
+        return hash(self.get_info())
+
+    def __call__(self, *arguments, arglist=None, goal_context_module=None,
+                 check=False):
+        """Call predicate with arguments.
+
+        Finds a binding for arguments that satisfies the predicate.
+        Like Query but only finds the first solution.
+
+        Args:
+            *arguments (Term)           : Terms to pass as arguments to this
+                predicate.
+            arglist (TermList)          : Arguments to this predicate.
+                Cannot pass both arguments and arglist.
+            goal_context_module (Module): Context module of the goal.
+                If ``None``, the current context module is used, or ``user`` if
+                there is no context. This only matters for meta_predicates.
+            check (bool)                : Check that the call succeeded.
+
+        Returns:
+            bool: True if a binding for `arguments` was found.
+
+        Raises:
+            PrologException: If an exception was raised in Prolog.
+            CallError      : If the call failed and `check` is ``True``.
+        """
+        if arglist is None:
+            arglist = TermList.from_terms(*arguments)
+        elif arguments:
+            raise ValueError('Cannot provide both "arguments" and "arglist".')
+
+        self.check_argument_match(arglist)
+        success = bool(PL_call_predicate(
+            _get_nullable_handle(goal_context_module),
+            PL_Q_NODEBUG | PL_Q_CATCH_EXCEPTION,
+            self._handle,
+            arglist._handle))
+
+        if check and not success:
+            raise CallError(str(self))
+        return success
+
+    Info = namedtuple('Info', ['name', 'arity', 'module'])
+
+    def get_info(self):
+        """Returns name, arity, and module of this predicate.
+
+        Returns:
+            Predicate.Info:
+        """
+        name = atom_t()
+        arity = c_int()
+        module = module_t()
+        PL_predicate_info(self._handle,
+                          byref(name), byref(arity), byref(module))
+        return self.Info(name=Atom._from_handle(name.value),
+                         arity=arity.value,
+                         module=Module._from_handle(module.value))
+
+    def check_argument_match(self, arguments):
+        """Check that the right number of arguments are given.
+
+        Args:
+            arguments (TermList) : List of arguments.
+
+        Raises:
+            ValueError : If the number of arguments does not match
+                the predicate's arity.
+        """
+        number_of_arguments = len(arguments)
+        arity = self.get_info().arity
+        if number_of_arguments != arity:
+            raise ValueError(
+                ('number of arguments ({nargs}) does not match '
+                 'predicate arity ({arity})').format(
+                     nargs=number_of_arguments,
+                     arity=arity))
+
+
 class Term(HandleWrapper):
+    _equality_predicate = Predicate.from_name_arity(name='==', arity=2)
+    _logical_or_functor = Functor(';', 2)
+    _logical_and_functor = Functor(',', 2)
+
     def __init__(self):
         """Initialize a new term. The term is initially a variable."""
         super().__init__(handle=PL_new_term_ref())
@@ -251,10 +502,15 @@ class Term(HandleWrapper):
     def __eq__(self, other):
         """Check if two terms have the same value. Does not perform unification.
         """
-        args = TermList(2)
-        args[0].put_term(self)
-        args[1].put_term(other)
-        return _term_equality_predicate(args)
+        return self._equality_predicate(self, other)
+
+    def __or__(self, other):
+        """Logical OR of two terms."""
+        return self._logical_or_functor(self, other)
+
+    def __and__(self, other):
+        """Logical AND of two terms."""
+        return self._logical_and_functor(self, other)
 
     def __int__(self):
         """Integer representation of this term (if it stores an integer)."""
@@ -847,256 +1103,10 @@ class TermList(HandleWrapper):
             raise IndexError()
 
 
-class Atom(HandleWrapper):
-    """Prolog Atom Interface"""
-    def __init__(self, name):
-        """Create a named atom."""
-        super().__init__(handle=PL_new_atom(name.encode()))
-
-    @classmethod
-    def _from_handle(cls, handle):
-        """Create an Atom object from an existing atom handle."""
-        new_atom = super()._from_handle(handle)
-        PL_register_atom(new_atom._handle)
-        return new_atom
-
-    def __str__(self):
-        return self.get_name()
-
-    def __repr__(self):
-        return 'Atom(name={name!r})'.format(name=self.get_name())
-
-    def __del__(self):
-        if prolog_state.is_available:
-            PL_unregister_atom(self._handle)
-
-    def __copy__(self):
-        """A new `Atom` object pointing to the same atom."""
-        return self._from_handle(self._handle)
-
-    def __eq__(self, other):
-        # Atoms can be deleted and the handles re-assigned so check name instead
-        # of handle.
-        return type(self) == type(other) and self.get_name() == other.get_name()
-
-    def __hash__(self):
-        return hash(self.get_name())
-
-    def get_name(self):
-        """The atom's name as a string."""
-        return PL_atom_chars(self._handle).decode()
-
-
-class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
-    """Prolog Functor Interface"""
-    def __init__(self, name, arity):
-        """Create a functor.
-
-        Args:
-            name (Atom): Name of the functor.
-                Either Atom object or string, the former is more efficient.
-            arity (int): Arity of the functor.
-        """
-        try:
-            name_handle = name._handle
-        except AttributeError:
-            name_handle = Atom(name=name)._handle
-
-        super().__init__(handle=PL_new_functor(name_handle, arity))
-
-    def __str__(self):
-        return "{name}/{arity}".format(name=self.get_name(),
-                                       arity=self.get_arity())
-
-    def __repr__(self):
-        return "Functor(name={name!r}, arity={arity!r})".format(
-            name=self.get_name(), arity=self.get_arity())
-
-    def __eq__(self, other):
-        return (type(self) == type(other) and
-                self.get_name() == other.get_name() and
-                self.get_arity() == other.get_arity())
-
-    def __hash__(self):
-        return hash((self.get_name(), self.get_arity()))
-
-    def __call__(self, *args):
-        """Returns a new compound term created from this functor and `args`.
-
-        The length of `args` must be the same as the arity of `functor`.
-        See `Term.from_cons_functor`.
-        """
-        return Term.from_cons_functor(self, *args)
-
-
-    def get_name(self):
-        """The functor's name as an `Atom` object."""
-        return Atom._from_handle(PL_functor_name(self._handle))
-
-    def get_arity(self):
-        """The functor's arity as an integer."""
-        return PL_functor_arity(self._handle)
-
-
-class Module(HandleWrapper, ConstantHandleToConstantMixIn):
-    """Prolog Module Interface"""
-    def __init__(self, name):
-        """Finds existing module or creates a new module with given name.
-
-        Args:
-            name (Atom): Name of the module.
-        """
-        super().__init__(handle=PL_new_module(name._handle))
-
-    def __str__(self):
-        return str(self.get_name())
-
-    def __repr__(self):
-        return 'Module(name={name!r})'.format(name=self.get_name())
-
-    def __eq__(self, other):
-        return type(self) == type(other) and self.get_name() == other.get_name()
-
-    def __hash__(self):
-        return hash(self.get_name())
-
-    @classmethod
-    def current_context(cls):
-        """Returns the current context module."""
-        return cls._from_handle(PL_context())
-
-    def get_name(self):
-        """The name of the module as an `Atom` object."""
-        return Atom._from_handle(PL_module_name(self._handle))
-
-
-class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
-    """Prolog Predicate Interface"""
-    def __init__(self, functor, module=None):
-        """Create a predicate from a functor.
-
-        Args:
-            functor (Functor): Functor used to create the predicate.
-            module (Module)  : Module containing the functor.
-                If ``None``, uses the current context module.
-        """
-        return super().__init__(
-            handle=PL_pred(functor._handle, _get_nullable_handle(module)))
-
-    @classmethod
-    def from_name_arity(cls, name, arity, module_name=None):
-        """Create a predicate directly from Python's built-in types.
-
-        Args:
-            name (str)       : Name of functor used to create the predicate.
-            arity (int)      : Arity of functor used to create the predicate.
-            module_name (str): Name of module containing the functor.
-                If ``None``, uses the current context module.
-        """
-        return cls._from_handle(handle=PL_predicate(
-            name.encode(), arity,
-            module_name.encode() if module_name is not None else None))
-
-    def __str__(self):
-        info = self.get_info()
-        return '{module_prefix}{name}/{arity}'.format(
-            module_prefix=(str(info.module) + ':'
-                           if info.module is not None else ''),
-            name=info.name,
-            arity=info.arity)
-
-    def __repr__(self):
-        info = self.get_info()
-        return 'Predicate(functor={functor!r}, module={module!r})'.format(
-            functor=Functor(name=info.name, arity=info.arity),
-            module=info.module)
-
-    def __eq__(self, other):
-        return type(self) == type(other) and self.get_info() == other.get_info()
-
-    def __hash__(self):
-        return hash(self.get_info())
-
-    def __call__(self, *arguments, arglist=None, goal_context_module=None,
-                 check=False):
-        """Call predicate with arguments.
-
-        Finds a binding for arguments that satisfies the predicate.
-        Like Query but only finds the first solution.
-
-        Args:
-            *arguments (Term)           : Terms to pass as arguments to this
-                predicate.
-            arglist (TermList)          : Arguments to this predicate.
-                Cannot pass both arguments and arglist.
-            goal_context_module (Module): Context module of the goal.
-                If ``None``, the current context module is used, or ``user`` if
-                there is no context. This only matters for meta_predicates.
-            check (bool)                : Check that the call succeeded.
-
-        Returns:
-            bool: True if a binding for `arguments` was found.
-
-        Raises:
-            PrologException: If an exception was raised in Prolog.
-            CallError      : If the call failed and `check` is ``True``.
-        """
-        if arglist is None:
-            arglist = TermList.from_terms(*arguments)
-        elif arguments:
-            raise ValueError('Cannot provide both "arguments" and "arglist".')
-
-        self.check_argument_match(arglist)
-        success = bool(PL_call_predicate(
-            _get_nullable_handle(goal_context_module),
-            PL_Q_NODEBUG | PL_Q_CATCH_EXCEPTION,
-            self._handle,
-            arglist._handle))
-
-        if check and not success:
-            raise CallError(str(self))
-        return success
-
-    Info = namedtuple('Info', ['name', 'arity', 'module'])
-
-    def get_info(self):
-        """Returns name, arity, and module of this predicate.
-
-        Returns:
-            Predicate.Info:
-        """
-        name = atom_t()
-        arity = c_int()
-        module = module_t()
-        PL_predicate_info(self._handle,
-                          byref(name), byref(arity), byref(module))
-        return self.Info(name=Atom._from_handle(name.value),
-                         arity=arity.value,
-                         module=Module._from_handle(module.value))
-
-    def check_argument_match(self, arguments):
-        """Check that the right number of arguments are given.
-
-        Args:
-            arguments (TermList) : List of arguments.
-
-        Raises:
-            ValueError : If the number of arguments does not match
-                the predicate's arity.
-        """
-        number_of_arguments = len(arguments)
-        arity = self.get_info().arity
-        if number_of_arguments != arity:
-            raise ValueError(
-                ('number of arguments ({nargs}) does not match '
-                 'predicate arity ({arity})').format(
-                     nargs=number_of_arguments,
-                     arity=arity))
-
-
 class Query(object):
     """Prolog Query Context Manager."""
-    def __init__(self, predicate, arguments, goal_context_module=None):
+    def __init__(self, predicate, *arguments, arglist=None,
+                 goal_context_module=None):
         """Prepare a query.
 
         A query consists of a predicate (`predicate`) and a list of arguments
@@ -1107,7 +1117,10 @@ class Query(object):
 
         Args:
             predicate (Predicate)       : Predicate to query.
-            arguments (TermList)        : List of argument terms to `predicate`.
+            *arguments (Term)           : Terms to pass as arguments to
+                `predicate`.
+            arglist (TermList)          : List of argument terms to `predicate`.
+                Cannot pass both arguments and arglist.
             goal_context_module (Module): Context module of the goal.
                 If ``None``, the current context module is used, or ``user`` if
                 there is no context. This only matters for meta_predicates.
@@ -1119,14 +1132,18 @@ class Query(object):
         """
         predicate.check_argument_match(arguments)
         self.predicate = predicate
-        self.arguments = arguments
+        if arglist is None:
+            arglist = TermList.from_terms(*arguments)
+        elif arguments:
+            raise ValueError('Cannot provide both "arguments" and "arglist".')
+        self.arglist = arglist
         self.goal_context_module = goal_context_module
         self.active_query = None
 
     def __enter__(self):
         self.active_query = ActiveQuery(
             predicate=self.predicate,
-            arguments=self.arguments,
+            arglist=self.arglist,
             goal_context_module=self.goal_context_module)
         return self.active_query
 
@@ -1136,13 +1153,13 @@ class Query(object):
     def __str__(self):
         return '{pred}({args})'.format(
             pred=str(self.predicate).rsplit('/', 1)[0],
-            args=', '.join(str(arg) for arg in self.arguments))
+            args=', '.join(str(arg) for arg in self.arglist))
 
     def __repr__(self):
-        return ('Query(predicate={predicate!r}, arguments={arguments!r}, '
+        return ('Query(predicate={predicate!r}, arglist={arglist!r}, '
                 'goal_context_module={goal_context_module!r})').format(
                     predicate=self.predicate,
-                    arguments=self.arguments,
+                    arglist=self.arglist,
                     goal_context_module=self.goal_context_module)
 
 
@@ -1151,19 +1168,26 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
 
     Only one query can be active at a time.
     """
-    def __init__(self, predicate, arguments, goal_context_module=None):
-        """Create an active query. Arguments are the same as `Query.__init__`.
+    def __init__(self, predicate, arglist, goal_context_module=None):
+        """Create an active query. See `Query`
+
+        Args:
+            predicate (Predicate)       : Predicate to query.
+            arglist (TermList)          : List of argument terms to `predicate`.
+            goal_context_module (Module): Context module of the goal.
+                If ``None``, the current context module is used, or ``user`` if
+                there is no context. This only matters for meta_predicates.
         """
-        predicate.check_argument_match(arguments)
+        predicate.check_argument_match(arglist)
         super().__init__(handle=PL_open_query(
             _get_nullable_handle(goal_context_module),
             PL_Q_NODEBUG | PL_Q_CATCH_EXCEPTION,
             predicate._handle,
-            arguments._handle))
+            arglist._handle))
         self._bound_temporary_terms = []
 
     def next_solution(self):
-        """Find the next solution, updating `arguments`.
+        """Find the next solution, updating `arglist`.
 
         Returns:
             bool: ``True`` if a solution was found, otherwise returns ``False``.
@@ -1281,10 +1305,3 @@ class TermRecord(HandleWrapper):
 
     def __del__(self):
         PL_erase(self._handle)
-
-
-_term_equality_predicate = Predicate.from_name_arity(name='==', arity=2)
-
-# _debug_predicate = Predicate(Functor('prolog_debug', 1))
-# _debug_predicate(Term.from_atom(Atom('chk_secure')))
-# _debug_predicate(Term.from_atom(Atom('msg_signal')))
