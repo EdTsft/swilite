@@ -262,21 +262,6 @@ class Term(HandleWrapper):
         """Creates a new Prolog term, copied from the old."""
         return self.from_term_copy(self)
 
-    # TODO remove? It is not obvious what this does.
-    # def __getitem__(self, key):
-    #     if not self.is_compound():
-    #         raise TypeError('Indexing is only supported for compound types.')
-    #     if not isinstance(key, int):
-    #         raise TypeError('Indices must be integers.')
-    #     if key < 0:
-    #         raise IndexError('Indices must be non-negative integers.')
-    #     arity = self.get_compound_name_arity().arity
-    #     if key >= arity:
-    #         raise IndexError(
-    #             'Index out of range. ({index} >= term arity {arity})'.format(
-    #                 index=key, arity=arity))
-    #     return self.get_arg(key)
-
     @classmethod
     def from_term_copy(cls, term):
         """Create a new term as a copy of an existing one."""
