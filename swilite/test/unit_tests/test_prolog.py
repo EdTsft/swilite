@@ -399,30 +399,26 @@ def test_frame_discard():
     assert_equal(X.type(), 'variable')
 
 def test_frame_rewind():
-    eq = Predicate.from_name_arity('=', 2)
-    two = Term.from_integer(2)
-    three = Term.from_integer(3)
-
     X = Term()
     with Frame() as f:
         t = f.term()
         t.put_integer(1)
-        eq(X, two)
+        X.unify_integer(2)
         assert_equal(t, Term.from_integer(1))
-        assert_equal(X, two)
+        assert_equal(X, Term.from_integer(2))
 
         f.rewind()
         with assert_raises(AttributeError):
             print(str(t))
 
         assert_equal(X.type(), 'variable')
-        eq(X, three)
-        assert_equal(X, three)
+        X.unify_integer(3)
+        assert_equal(X, Term.from_integer(3))
         f.rewind()
         assert_equal(X.type(), 'variable')
-        eq(X, two)
+        X.unify_integer(2)
 
-    assert_equal(X, two)
+    assert_equal(X, Term.from_integer(2))
 
 def test_frame_dynamic_database():
     dynamic = Predicate.from_name_arity('dynamic', 1)

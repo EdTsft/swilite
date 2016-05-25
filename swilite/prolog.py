@@ -106,6 +106,20 @@ from swilite.core import (
     PL_register_atom,
     PL_rewind_foreign_frame,
     PL_term_type,
+    PL_unify,
+    PL_unify_arg,
+    PL_unify_atom,
+    PL_unify_atom_nchars,
+    PL_unify_bool,
+    PL_unify_compound,
+    PL_unify_float,
+    PL_unify_functor,
+    PL_unify_int64,
+    PL_unify_list,
+    PL_unify_list_nchars,
+    PL_unify_nil,
+    PL_unify_pointer,
+    PL_unify_string_nchars,
     PL_unregister_atom,
     REP_UTF8,
     atom_t,
@@ -531,18 +545,21 @@ class Term(HandleWrapper):
         return self.from_term_copy(self)
 
     def __getitem__(self, key):
-        if not isinstance(key, int):
+        self._check_compound_index(key)
+        return self.get_arg(key)
+
+    def _check_compound_index(self, index):
+        if not isinstance(index, int):
             raise TypeError('Indices must be integers.')
-        if key < 0:
+        if index < 0:
             raise IndexError('Indices must be non-negative integers.')
         if not self.is_compound():
             raise TypeError('Indexing is only supported for compound types.')
         _, arity = self.get_compound_name_arity()
-        if key >= arity:
+        if index >= arity:
             raise IndexError(
                 'Index out of range. ({index} >= term arity {arity})'.format(
-                    index=key, arity=arity))
-        return self.get_arg(key)
+                    index=index, arity=arity))
 
     @classmethod
     def from_term_copy(cls, term):
@@ -912,9 +929,7 @@ class Term(HandleWrapper):
     def put_list_chars(self, bytes_):
         """Put a byte string in the term as a list of characters."""
         self._require_success(
-            PL_put_list_nchars(self._handle,
-                               len(bytes_),
-                               bytes_))
+            PL_put_list_nchars(self._handle, len(bytes_), bytes_))
 
     def put_integer(self, val):
         """Put an integer in the term."""
@@ -1039,6 +1054,141 @@ class Term(HandleWrapper):
         if check and not success:
             raise CallError(str(self))
         return success
+
+    def unify(self, term):
+        """Unify with a term.
+
+        Functionally equivalent to:
+        `Predicate.from_name_arity('=', 2)(self, term)`
+
+        Returns:
+            bool: True if the unification was successful
+
+        Even if this returns false, the unification may have partially completed
+        and variables will remain bound. Use with `Frame` to completely undo
+        bindings in the event of failure.
+        """
+        return bool(PL_unify(self._handle, term._handle))
+
+    def unify_atom(self, atom):
+        """Unify with an atom.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_atom(self._handle, atom._handle))
+
+    def unify_bool(self, val):
+        """Unify with a boolean.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_bool(self._handle, int(bool(val))))
+
+    def unify_atom_name(self, atom_name):
+        """Unify with an atom given by its name.
+
+        Returns:
+            bool: True on success.
+        """
+        encoded_atom_name = atom_name.encode()
+        return bool(PL_unify_atom_nchars(self._handle,
+                                         len(encoded_atom_name),
+                                         encoded_atom_name))
+
+    def unify_list_chars(self, bytes_):
+        """Unify with a list of bytes.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_list_nchars(self._handle, len(bytes_), bytes_))
+
+    def unify_string(self, string):
+        """Unify with a string.
+
+        Returns:
+            bool: True on success.
+        """
+        encoded_string = string.encode()
+        return bool(PL_unify_string_nchars(self._handle,
+                                           len(encoded_string),
+                                           encoded_string))
+
+    def unify_integer(self, val):
+        """Unify with an integer.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_int64(self._handle, val))
+
+    def unify_float(self, val):
+        """Unify with a floating-point value.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_float(self._handle, val))
+
+    def unify_pointer(self, address):
+        """Unify with an integer address.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_pointer(self._handle, address))
+
+    def unify_functor(self, functor):
+        """Unify with a functor.
+
+        Unifies the functor, not any arguments.
+        If functor has arity 0, unifies with an atom.
+        Identical to `Term.unify_compound` except for arity-0 functors.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_functor(self._handle, functor))
+
+    def unify_compound(self, functor):
+        """Unify with a compound functor.
+
+        Unifies the functor, not any arguments.
+        If functor has arity 0, unifies with an arity-0 compound term.
+        Identical to `Term.unify_compound` except for arity-0 functors.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_compound(self._handle, functor))
+
+    def unify_list(self, head, tail):
+        """Unify with a list cell [head | tail] for terms head, tail.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_list(self._handle, head._handle, tail._handle))
+
+    def unify_nil(self):
+        """Unify with the list terminator constant.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_nil(self._handle))
+
+    def unify_arg(self, index, arg):
+        """Unify the index-th argument of a compound term with term `arg`.
+
+        Indexing is 0-based.
+
+        Returns:
+            bool: True on success.
+        """
+        return bool(PL_unify_arg(index + 1, self._handle, arg._handle))
 
 
 def _add_from_method_to_class(klass, put_method_name, put_method):
