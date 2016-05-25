@@ -276,6 +276,12 @@ def test_term__eq__():
     foo = Term.from_atom_name('foo')
     assert foo == foo
 
+    bar = Term.from_atom_name('bar')
+    assert foo != bar
+
+    assert foo != Term()
+    assert Term() != Term()
+
 
 def test_term_equality():
     a = Term.from_atom_name('a')

@@ -6,24 +6,42 @@ from nose.tools import assert_true, assert_false, assert_equal
 from swilite.prolog import (Atom, Functor, Term, TermList, Predicate, Query,
                             Frame)
 
-class TestLearnPrologNowCh1():
-    # http://www.learnprolognow.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse1
+# Common terms
+happy = Functor('happy', 1)
+jealous = Functor('jealous', 2)
+listens_2_music = Functor('listens2Music', 1)
+loves = Functor('loves', 2)
+plays_air_guitar = Functor('plays_air_guitar', 1)
+woman = Functor('woman', 1)
+
+mia = Term.from_atom_name('mia')
+jody = Term.from_atom_name('jody')
+yolanda = Term.from_atom_name('yolanda')
+
+vincent = Term.from_atom_name('vincent')
+butch = Term.from_atom_name('butch')
+marcellus = Term.from_atom_name('marcellus')
+honey_bunny = Term.from_atom_name('honey_bunny')
+
+pumpkin = Term.from_atom_name('pumpkin')
+
+party = Term.from_atom_name('party')
+rock_concert = Term.from_atom_name('rockConcert')
+
+
+class BasicKeywords():
     def setup(self):
         self.retractall = Predicate.from_name_arity('retractall', 1)
         self.assertz = Predicate.from_name_arity('assertz', 1)
         self.dynamic = Predicate.from_name_arity('dynamic', 1)
+        self.call = Predicate.from_name_arity('call', 1)
         self.rule = Functor(':-', 2)
-        self.and_ = Functor(',', 2)
+
+
+class TestLearnPrologNowCh1(BasicKeywords):
+    # http://www.learnprolognow.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse1
 
     def knowledge_database_1(self):
-        woman = Functor('woman', 1)
-        plays_air_guitar = Functor('playsAirGuitar', 1)
-        mia = Term.from_atom_name('mia')
-        jody = Term.from_atom_name('jody')
-        yolanda = Term.from_atom_name('yolanda')
-        party = Term.from_atom_name('party')
-        rock_concert = Term.from_atom_name('rockConcert')
-
         self.dynamic(Term.from_functor(woman))
         self.dynamic(rock_concert)
         self.assertz(woman(mia))
@@ -50,13 +68,6 @@ class TestLearnPrologNowCh1():
         assert_false(Term.from_atom_name('rockConcert')())
 
     def knowledge_database_2(self):
-        happy = Functor('happy', 1)
-        listens_2_music = Functor('listens2Music', 1)
-        plays_air_guitar = Functor('playsAirGuitar', 1)
-
-        mia = Term.from_atom_name('mia')
-        yolanda = Term.from_atom_name('yolanda')
-
         self.dynamic(Term.from_functor(happy))
         self.dynamic(Term.from_functor(listens_2_music))
         self.dynamic(Term.from_functor(plays_air_guitar))
@@ -71,13 +82,6 @@ class TestLearnPrologNowCh1():
         assert_true(plays_air_guitar(mia)())
 
     def knowledge_database_3(self):
-        happy = Functor('happy', 1)
-        listens_2_music = Functor('listens2Music', 1)
-        plays_air_guitar = Functor('playsAirGuitar', 1)
-
-        vincent = Term.from_atom_name('vincent')
-        butch = Term.from_atom_name('butch')
-
         self.dynamic(Term.from_functor(happy))
         self.dynamic(Term.from_functor(listens_2_music))
         self.dynamic(Term.from_functor(plays_air_guitar))
@@ -94,20 +98,8 @@ class TestLearnPrologNowCh1():
         assert_true(plays_air_guitar(butch)())
 
     def knowledge_database_4(self):
-        woman = Functor('woman', 1)
-        loves = Functor('loves', 2)
-
         self.retractall(woman(Term()))
         self.retractall(loves(Term(), Term()))
-
-        mia = Term.from_atom_name('mia')
-        jody = Term.from_atom_name('jody')
-        yolanda = Term.from_atom_name('yolanda')
-        vincent = Term.from_atom_name('vincent')
-        butch = Term.from_atom_name('butch')
-        marsellus = Term.from_atom_name('marsellus')
-        honey_bunny = Term.from_atom_name('honey_bunny')
-        pumpkin = Term.from_atom_name('pumpkin')
 
         self.dynamic(Term.from_functor(woman))
         self.dynamic(Term.from_functor(loves))
@@ -117,7 +109,7 @@ class TestLearnPrologNowCh1():
         self.assertz(woman(yolanda))
 
         self.assertz(loves(vincent, mia))
-        self.assertz(loves(marsellus, mia))
+        self.assertz(loves(marcellus, mia))
         self.assertz(loves(pumpkin, honey_bunny))
         self.assertz(loves(honey_bunny, pumpkin))
 
@@ -152,32 +144,108 @@ class TestLearnPrologNowCh1():
 
         with Frame() as f:
             X = f.term()
-            assert_true((loves(marsellus, X) & woman(X))())
+            assert_true((loves(marcellus, X) & woman(X))())
             assert_equal(X, mia)
 
     def knowledge_database_5(self):
-        loves = Functor('loves', 2)
-        jealous = Functor('jealous', 2)
-
         self.retractall(loves(Term(), Term()))
         self.retractall(jealous(Term(), Term()))
 
-        mia = Term.from_atom_name('mia')
-        vincent = Term.from_atom_name('vincent')
-        marsellus = Term.from_atom_name('marsellus')
-        honey_bunny = Term.from_atom_name('honey_bunny')
-        pumpkin = Term.from_atom_name('pumpkin')
-
         self.assertz(loves(vincent, mia))
-        self.assertz(loves(marsellus, mia))
+        self.assertz(loves(marcellus, mia))
         self.assertz(loves(pumpkin, honey_bunny))
         self.assertz(loves(honey_bunny, pumpkin))
         X = Term()
         Y = Term()
         Z = Term()
         self.assertz(self.rule(jealous(X, Y), loves(X, Z) & loves(Y, Z)))
-        print(self.rule(jealous(X, Y), loves(X, Z) & loves(Y, Z)))
 
         W = Term()
-        jealous(marsellus, W)()
+        jealous(marcellus, W)()
         assert_equal(W, vincent)
+
+
+class TestLearnPrologNowCh2(BasicKeywords):
+    # http://www.learnprolognow.org/lpnpage.php?pagetype=html&pageid=lpn-htmlch2
+    def test_basic_unification(self):
+        assert_true(mia.unify(mia))
+
+        two = Term.from_integer(2)
+        assert_true(two, two)
+
+        assert_false(mia.unify(vincent))
+
+        with Frame():
+            assert_true(Term().unify(mia))
+
+        with Frame():
+            assert_true(Term().unify(Term()))
+
+        with Frame():
+            X = Term()
+            assert_true(X.unify(mia))
+            assert_false(X.unify(vincent))
+
+        k = Functor('k', 2)
+        s = Functor('s', 1)
+        t = Functor('t', 1)
+        g = Term.from_atom_name('g')
+        k_atom = Term.from_atom_name('k')
+
+        with Frame():
+            X = Term()
+            Y = Term()
+
+            assert_true(k(s(g), Y).unify(k(X, t(k_atom))))
+            assert_equal(X, s(g))
+            assert_equal(Y, t(k_atom))
+
+        with Frame():
+            X = Term()
+            Y = Term()
+
+            assert_true(k(s(g), t(k_atom)).unify(k(X, t(Y))))
+            assert_equal(X, s(g))
+            assert_equal(Y, k_atom)
+
+        self.retractall(loves(Term(), Term()))
+        self.assertz(loves(vincent, mia))
+        self.assertz(loves(marcellus, mia))
+        self.assertz(loves(pumpkin, honey_bunny))
+        self.assertz(loves(honey_bunny, pumpkin))
+
+        with Frame():
+            X = Term()
+            assert_false(loves(X, X).unify(loves(marcellus, mia)))
+
+    def test_lines_example(self):
+        point = Functor('point', 2)
+        line = Functor('line', 2)
+        vertical = Functor('vectical', 1)
+        horizontal = Functor('horizontal', 1)
+
+        with Frame():
+            X = Term()
+            Y = Term()
+            Z = Term()
+            self.assertz(vertical(line(point(X, Y), point(X, Z))))
+            self.assertz(horizontal(line(point(X, Y), point(Z, Y))))
+
+        _1 = Term.from_integer(1)
+        _2 = Term.from_integer(2)
+        _3 = Term.from_integer(3)
+        assert_true(vertical(line(point(_1, _1), point(_1, _3)))())
+        assert_false(vertical(line(point(_1, _1), point(_3, _2)))())
+
+        with Frame():
+            Y = Term()
+            assert_true(horizontal(line(point(_1, _1), point(_2, Y)))())
+            assert_equal(Y, _1)
+
+        with Frame():
+            P = Term()
+            expr = horizontal(line(point(_2, _3), P))
+            with Query(self.call, expr) as q:
+                res = list(q.term_assignments(P, True))
+            assert_equal(len(res), 1)
+            assert_true(res[0].get().unify(point(Term(), _3)))
