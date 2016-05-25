@@ -4,7 +4,7 @@ from nose.tools import (assert_equal, assert_not_equal, assert_raises,
                         assert_true, assert_false)
 
 from swilite.prolog import (Atom, CallError, Functor, Module, Predicate, Term,
-                            TermList)
+                            TermList, Frame)
 
 
 def check_atom(name, atom=None):
@@ -344,3 +344,98 @@ def test_term_logic():
     assert_false((false & true | false)())
     assert_true((false & false | true)())
     assert_false((false & (false | true))())
+
+
+def test_frame_close():
+    f1 = Frame()
+    t1 = f1.term()
+    t1.put_atom_name('t1')
+    assert_equal(str(t1), 't1')
+    f1.close()
+    with assert_raises(AttributeError):
+        print(t1)
+    with assert_raises(AttributeError):
+        f1.close()
+
+    with Frame() as f2:
+        t2 = f2.term()
+        t2.put_atom_name('t2')
+        assert_equal(str(t2), 't2')
+
+    with assert_raises(AttributeError):
+        print(t2)
+    with assert_raises(AttributeError):
+        f2.close()
+
+    X = Term()
+    with Frame():
+        X.put_integer(1)
+        assert_equal(str(X), '1')
+    assert_equal(str(X), '1')
+
+    eq = Predicate.from_name_arity('=', 2)
+    X = Term()
+    with Frame():
+        eq(X, Term.from_integer(1))
+        assert_equal(str(X), '1')
+    assert_equal(str(X), '1')
+
+
+def test_frame_discard():
+    eq = Predicate.from_name_arity('=', 2)
+
+    X = Term()
+    with Frame(discard=True):
+        X.put_integer(1)
+        assert_equal(str(X), '1')
+    assert_equal(str(X), '1')
+
+    X = Term()
+    with Frame(discard=True):
+        eq(X, Term.from_integer(1))
+        assert_equal(str(X), '1')
+        assert_equal(X.type(), 'integer')
+    assert_not_equal(str(X), '1')
+    assert_equal(X.type(), 'variable')
+
+def test_frame_rewind():
+    eq = Predicate.from_name_arity('=', 2)
+    two = Term.from_integer(2)
+    three = Term.from_integer(3)
+
+    X = Term()
+    with Frame() as f:
+        t = f.term()
+        t.put_integer(1)
+        eq(X, two)
+        assert_equal(t, Term.from_integer(1))
+        assert_equal(X, two)
+
+        f.rewind()
+        with assert_raises(AttributeError):
+            print(str(t))
+
+        assert_equal(X.type(), 'variable')
+        eq(X, three)
+        assert_equal(X, three)
+        f.rewind()
+        assert_equal(X.type(), 'variable')
+        eq(X, two)
+
+    assert_equal(X, two)
+
+def test_frame_dynamic_database():
+    dynamic = Predicate.from_name_arity('dynamic', 1)
+    assertz = Predicate.from_name_arity('assertz', 1)
+
+    foo = Functor('foo', 1)
+    a = Term.from_atom_name('a')
+
+    dynamic(foo(Term()))
+
+    with Frame(discard=True):
+        assertz(foo(a))
+        assert_true(foo(a)())
+
+    # Frames have no effect on the dynamic database
+    assert_true(foo(a)())

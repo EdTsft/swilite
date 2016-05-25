@@ -33,12 +33,14 @@ from swilite.core import (
     PL_call,
     PL_call_predicate,
     PL_chars_to_term,
+    PL_close_foreign_frame,
     PL_close_query,
     PL_cons_functor,
     PL_cons_functor_v,
     PL_cons_list,
     PL_context,
     PL_copy_term_ref,
+    PL_discard_foreign_frame,
     PL_erase,
     PL_exception,
     PL_functor_arity,
@@ -81,6 +83,7 @@ from swilite.core import (
     PL_new_term_ref,
     PL_new_term_refs,
     PL_next_solution,
+    PL_open_foreign_frame,
     PL_open_query,
     PL_pred,
     PL_predicate,
@@ -101,6 +104,7 @@ from swilite.core import (
     PL_record,
     PL_recorded,
     PL_register_atom,
+    PL_rewind_foreign_frame,
     PL_term_type,
     PL_unregister_atom,
     REP_UTF8,
@@ -129,6 +133,7 @@ _term_type_code_name = {
 __all__ = [
     'ActiveQuery',
     'Atom',
+    'Frame',
     'Functor',
     'Module',
     'Predicate',
@@ -138,10 +143,6 @@ __all__ = [
     'TermList',
     'TermRecord',
 ]
-
-
-# TODO: Foreign frames
-# TODO: Unifications
 
 
 class PrologException(Exception):
@@ -208,14 +209,14 @@ class TemporaryHandleMixIn(object):
     def _get_handle(self):
         if self._valid:
             return self.__handle
-        raise AttributeError('handle been invalidated!')
+        raise AttributeError('handle been invalidated')
 
     def _set_handle(self, handle):
         self.__handle = handle
 
     _handle = property(fget=_get_handle, fset=_set_handle)
 
-    def invalidate(self):
+    def _invalidate(self):
         self._valid = False
 
 
@@ -1257,14 +1258,14 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
 
     def _invalidate_bound_temporary_terms(self):
         for term in self._bound_temporary_terms:
-            term.invalidate()
+            term._invalidate()
         self._bound_temporary_terms = []
 
     def close(self):
         """Close the query and destroy all data and bindings associated with it.
         """
         PL_close_query(self._handle)
-        self.invalidate()
+        self._invalidate()
 
     def __repr__(self):
         return ('ActiveQuery(handle_={handle!r})'.format(handle=self._handle))
@@ -1305,3 +1306,116 @@ class TermRecord(HandleWrapper):
 
     def __del__(self):
         PL_erase(self._handle)
+
+
+class Frame(HandleWrapper, TemporaryHandleMixIn):
+    """A prolog frame context.
+
+    All term references (and optionally, data modifications) created within the
+    frame are discarded at the close of the frame.
+
+    With close(), used to create temporary term refences.
+    With discard(), used to undo unifications and other data modifications.
+
+    It is best to use the frame in a python context. i.e.:
+
+    >>> X = Term()
+    >>> eq = Predicate.from_name_arity('=', 2)
+    >>> with Frame() as frame:
+    ...     for i in range(3):
+    ...         t = frame.term()
+    ...         t.put_integer(i)
+    ...         eq(X, t) and None
+    ...         print(X)
+    ...         frame.rewind()
+    0
+    1
+    2
+
+    Warning:
+        Term objects created using the `Term` class constructors after the frame
+        is opened will produce undefined behaviour (likely segfault) if used
+        after the frame is closed, discarded, or rewound.
+        Instead, use the `term()` method to get `Term` objects with proper error
+        handling.
+
+    Warning:
+        While the SWI-Prolog documentation doesn't specifically warn against it,
+        it is probably a bad idea to open and close multiple frames in anything
+        other than stack order.
+
+    Note:
+        Frames have no effect on the prolog dynamic database (assertz).
+    """
+    def __init__(self, discard=False):
+        """Open the frame.
+
+        Args:
+            discard (bool) : If true, __exit__ calls discard() instead of
+                close().
+        """
+        super().__init__(handle=PL_open_foreign_frame())
+        self.discard_on_exit = discard
+        self._associated_terms = []
+
+    def close(self):
+        """Close the frame.
+
+        Discard all term references created since the frame was opened,
+        retaining all other prolog data.
+        """
+        self._invalidate_associated_terms()
+        PL_close_foreign_frame(self._handle)
+        self._invalidate()
+
+    def discard(self):
+        """Discard the frame.
+
+        Discard all term references, bindings, and prolog data created since
+        the frame was opened.
+        """
+        self._invalidate_associated_terms()
+        PL_discard_foreign_frame(self._handle)
+        self._invalidate()
+
+    def rewind(self):
+        """Rewind the frame.
+
+        Undo all bindings and discard all term references created since the
+        frame was opened. Does not pop the frame.
+        """
+        self._invalidate_associated_terms()
+        PL_rewind_foreign_frame(self._handle)
+
+    def term(self):
+        """Safely create Term objects within this frame.
+
+        The returned terms will be invalidated _in Python_ when this frame is
+        closed, discarded, or rewound.
+
+        Term objects created within the frame using the `Term` class will by
+        invalidated in Prolog at the end of the frame, but _not_ in Python.
+        As a result, continuing to use those objects will produce undefined
+        behaviour, likely a segfault.
+
+        Conversely, the `TemporaryTerm` objects returned by this method will
+        produce a catachable Python exception if used after invalidation, rather
+        than immediately terminating the program with a segfault.
+        """
+        term = TemporaryTerm()
+        self._associated_terms.append(term)
+        return term
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_value, traceback):
+        if self.discard_on_exit:
+            self.discard()
+        else:
+            self.close()
+
+    def _invalidate_associated_terms(self):
+        for term in self._associated_terms:
+            term._invalidate()
+        self._associated_terms = []
