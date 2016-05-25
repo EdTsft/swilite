@@ -3,7 +3,8 @@
 
 from nose.tools import assert_true, assert_false, assert_equal
 
-from swilite.prolog import Atom, Functor, Term, TermList, Predicate, Query
+from swilite.prolog import (Atom, Functor, Term, TermList, Predicate, Query,
+                            Frame)
 
 class TestLearnPrologNowCh1():
     # http://www.learnprolognow.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse1
@@ -120,35 +121,39 @@ class TestLearnPrologNowCh1():
         self.assertz(loves(pumpkin, honey_bunny))
         self.assertz(loves(honey_bunny, pumpkin))
 
-        X = Term()
-        # Creates a compound term: woman(X)
-        # Then evaluates that compound term like once(woman(X))
-        # Finds the first solution.
-        woman(X)()
-        assert_equal(X, mia)
+        with Frame() as f:
+            X = f.term()
+            # Creates a compound term: woman(X)
+            # Then evaluates that compound term like once(woman(X))
+            # Finds the first solution.
+            woman(X)()
+            assert_equal(X, mia)
 
-        # Do the same thing by calling a predicate instead of evaluating
-        # a compound term.
-        # Creates the predicate `woman` then evaluates it with the argument `Y`
-        # Again, finds the first solution.
-        Y = Term()
-        Predicate(woman)(Y)
-        assert_equal(Y, mia)
+        with Frame() as f:
+            # Do the same thing by calling a predicate instead of evaluating
+            # a compound term.
+            # Creates the predicate `woman` then evaluates it with the argument
+            # `X`. Again, finds the first solution.
+            X = f.term()
+            Predicate(woman)(X)
+            assert_equal(X, mia)
 
-        # Use a query to find all solutions.
-        Z = Term()
-        with Query(Predicate(woman), Z) as q:
-            q.next_solution()
-            assert_equal(Z, mia)
-            q.next_solution()
-            assert_equal(Z, jody)
-            q.next_solution()
-            assert_equal(Z, yolanda)
-            assert_false(q.next_solution())
+            # Use a query to find all solutions.
+        with Frame() as f:
+            X = f.term()
+            with Query(Predicate(woman), X) as q:
+                q.next_solution()
+                assert_equal(X, mia)
+                q.next_solution()
+                assert_equal(X, jody)
+                q.next_solution()
+                assert_equal(X, yolanda)
+                assert_false(q.next_solution())
 
-        X.put_variable()
-        assert_true((loves(marsellus, X) & woman(X))())
-        assert_equal(X, mia)
+        with Frame() as f:
+            X = f.term()
+            assert_true((loves(marsellus, X) & woman(X))())
+            assert_equal(X, mia)
 
     def knowledge_database_5(self):
         loves = Functor('loves', 2)
