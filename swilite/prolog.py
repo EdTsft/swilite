@@ -13,7 +13,7 @@ from ctypes import (
 
 from swilite.core import (
     BUF_DISCARDABLE,
-    CVT_WRITE,
+    CVT_WRITEQ,
     PL_ATOM,
     PL_BLOB,
     PL_DICT,
@@ -632,6 +632,18 @@ class Term(HandleWrapper):
         A term is a list if it is:
             * a compound term using the list constructor (`is_pair`); or
             * the list terminator (`is_nil`).
+
+        Note:
+            This definition is weaker than what is used by the prolog predicate
+            ``is_list``, which has the additional constraint that the 2nd term
+            in the list pair also be a list.
+
+            For example,
+            >>> Term.from_parsed('[1|2]').is_list()
+            True
+            >>> Term.from_parsed('is_list([1|2])')()
+            False
+
         """
         return bool(PL_is_list(self._handle))
 
@@ -689,7 +701,7 @@ class Term(HandleWrapper):
 
     def get_atom_chars(self):
         """The value of this term as a string, if it is a prolog atom."""
-        s = POINTER(c_char)
+        s = POINTER(c_char)()
         length = c_size_t()
         self._require_success_expecting_type(
             PL_get_atom_nchars(self._handle, byref(length), byref(s)),
@@ -713,7 +725,7 @@ class Term(HandleWrapper):
             PL_get_nchars(self._handle,
                           byref(length),
                           byref(s),
-                          CVT_WRITE | BUF_DISCARDABLE | REP_UTF8))
+                          CVT_WRITEQ | BUF_DISCARDABLE | REP_UTF8))
         return _decode_ptr_len_string(s, length, encoding='utf8')
 
     def get_integer(self):
@@ -776,7 +788,8 @@ class Term(HandleWrapper):
         self._require_success_expecting_type(
             PL_get_name_arity(self._handle, byref(name), byref(arity)),
             'compound term', 'atom')
-        return self.NameArity(name=name.value, arity=arity.value)
+        return self.NameArity(name=Atom._from_handle(name.value),
+                              arity=arity.value)
 
     def get_compound_name_arity(self):
         """The name and arity of this term, if it is a compound term.
@@ -792,7 +805,8 @@ class Term(HandleWrapper):
             PL_get_compound_name_arity(self._handle, byref(name),
                                        byref(arity)),
             'compound term')
-        return self.NameArity(name=name.value, arity=arity.value)
+        return self.NameArity(name=Atom._from_handle(name.value),
+                              arity=arity.value)
 
     def get_module(self):
         """A `Module` object corresponding to this term, if it is an atom."""
@@ -939,14 +953,13 @@ class Term(HandleWrapper):
         To create a term with instantiated arguments or with persistent
         variables, use `put_cons_functor`.
 
-        WARNING
-        -------
-        The arguments of the returned compound term are not persistent.
-        References to the arguments (e.g. using `get_arg` or `__getitem__`)
-        may be invalidated by the prolog system after other API calls.
+        Warning:
+            The arguments of the returned compound term are not persistent.
+            References to the arguments (e.g. using `get_arg`) may be
+            invalidated by the prolog system after other API calls.
 
-        Either use `put_cons_functor` or get a new reference to the arguments
-        each time they are needed.
+            Either use `put_cons_functor` or get a new reference to the
+            arguments each time they are needed.
         """
         self._require_success(
             PL_put_functor(self._handle, functor._handle))

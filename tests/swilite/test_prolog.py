@@ -1,8 +1,10 @@
 import copy
+import ctypes
+import math
+import re
 
 from nose.tools import (assert_equal, assert_not_equal, assert_raises,
-                        assert_regexp_matches, assert_false, assert_true,
-                        assert_greater)
+                        assert_false, assert_true, assert_regex)
 
 from swilite.prolog import (Atom, CallError, Functor, Module, Predicate, Term,
                             TermList, Frame)
@@ -184,7 +186,6 @@ def check_predicate(name, arity, module=None, predicate=None):
     module_str = str(module) if module is not None else None
 
     if predicate is None:
-        print(repr(module_str))
         check_predicate(name=name, arity=arity, module=module,
                         predicate=Predicate.from_name_arity(
                             name=str(name), arity=arity,
@@ -361,7 +362,7 @@ def test_frame_close():
     assert_equal(str(t1), 't1')
     f1.close()
     with assert_raises(AttributeError):
-        print(t1)
+        str(t1)
     with assert_raises(AttributeError):
         f1.close()
 
@@ -371,7 +372,7 @@ def test_frame_close():
         assert_equal(str(t2), 't2')
 
     with assert_raises(AttributeError):
-        print(t2)
+        str(t2)
     with assert_raises(AttributeError):
         f2.close()
 
@@ -418,7 +419,7 @@ def test_frame_rewind():
 
         f.rewind()
         with assert_raises(AttributeError):
-            print(str(t))
+            str(t)
 
         assert_equal(X.type(), 'variable')
         X.unify_integer(3)
@@ -468,17 +469,25 @@ class CheckTerm():
                  is_acyclic=True,
                  pointer_value=None,
                  is_ground=None,
-                 is_integer_like=None):
+                 is_integer_like=None,
+                 is_pointer=False):
         self.type_ = type_
         self.value = value
         self.prolog_string = prolog_string
 
-        if self.type_ == 'atom':
+        # SWI-Prolog is inconsistent with respect to the list terminator
+        # constant nil ([]). Within the language, nil is not an atom.
+        # ``atom([])`` is false. However, the foreign language API functions
+        # behave as if nil is an atom.
+        self.is_api_atom = self.type_ in ('atom', 'nil')
+
+        if self.is_api_atom:
             if atom is None:
                 raise ValueError("Argument 'atom' must be set")
             self.atom = atom
 
-        if self.type_ == 'compound':
+        self.is_compound = self.type_ in ('compound', 'list-pair', 'dict')
+        if self.is_compound or self.is_api_atom:
             if functor is None:
                 raise ValueError("Argument 'functor' must be set")
             self.functor = functor
@@ -491,30 +500,31 @@ class CheckTerm():
         self.is_ground = is_ground
 
         if is_integer_like is None:
-            is_integer_like == self.type_ == 'integer'
+            is_integer_like = (self.type_ == 'integer')
         self.is_integer_like = is_integer_like
 
-        self.is_compound = self.type_ in ('compound', 'list-pair', 'dict')
+        self.is_pointer = is_pointer
+
         self.is_boolean_atom = (self.type_ == 'atom' and
                                 self.value in (True, False))
 
     def check_value_string(self, term_string):
-        if self.type_ == 'variable':
-            # Can't pre-determine the variable name
-            # But has to begin with a _ or capital letter.
-            assert_greater(len(term_string), 0)
-            assert term_string[0] == '_' or term_string[0].isupper()
-        else:
-            assert_equal(term_string, self.prolog_string)
+        if self.is_pointer:
+            return
+        variable_regex = '[A-Z_][A-Za-z0-9_]*'
+        prolog_string_regex = (
+            '^' +
+            re.escape(self.prolog_string).replace('\%v', variable_regex) + '$')
+        assert_regex(term_string, prolog_string_regex)
 
     def test__str__(self):
         self.check_value_string(str(self.term))
 
     def test__repr__(self):
-        assert_regexp_matches(
-            repr(self.term),
-            "Term\(handle=\d*, type={!r}, value={!r}\)".format(
-                self.type_, str(self.term)))
+        assert_regex(repr(self.term),
+                     "Term\(handle=\d*, type={!s}, value={!s}\)".format(
+                         re.escape(repr(self.type_)),
+                         re.escape(repr(str(self.term)))))
 
     def test__eq__(self):
         assert_equal(self.term, self.term)
@@ -527,14 +537,24 @@ class CheckTerm():
         assert_not_equal(2, self.term)
 
     def test__int__(self):
-        if self.is_integer_like:
+        if self.is_pointer:
+            # No promise about value, but should complete successfully
+            int(self.term)
+        elif self.is_integer_like:
             assert_equal(int(self.term), int(self.value))
         else:
             assert_raises(TypeError, int, self.term)
 
     def test__float__(self):
-        if self.type_ in ('integer', 'float'):
-            assert_equal(float(self.term), float(self.value))
+        if self.is_pointer:
+            # No promise about value, but should complete successfully
+            float(self.term)
+        elif self.type_ in ('integer', 'float'):
+            if math.isnan(self.value):
+                # Checking equality of NaN doesn't work
+                assert_true(math.isnan(float(self.term)))
+            else:
+                assert_equal(float(self.term), float(self.value))
         else:
             assert_raises(TypeError, float, self.term)
 
@@ -581,8 +601,12 @@ class CheckTerm():
             assert_true(self.term.is_functor(self.functor))
 
             name, arity = self.term.get_name_arity()
+            print('term', self.term)
+            print('name', name, type(name))
+            print('arity', arity)
             assert_true(self.term.is_functor(Functor(name, arity)))
-            assert_false(self.term.is_functor(Functor(name + '_', arity)))
+            assert_false(self.term.is_functor(
+                Functor(name.get_name() + '_', arity)))
             assert_false(self.term.is_functor(Functor(name, arity + 1)))
 
     def test_is_ground(self):
@@ -594,13 +618,14 @@ class CheckTerm():
         assert_equal(self.term.is_integer(), self.type_ == 'integer')
 
     def test_is_list(self):
+        # This is a weaker condition than prolog's is_list predicate.
         assert_equal(self.term.is_list(), self.type_ in ('nil', 'list-pair'))
 
     def test_is_nil(self):
         assert_equal(self.term.is_nil(), self.type_ == 'nil')
 
     def test_is_number(self):
-        assert_equal(self.term.is_number(), self.type_ == ('integer', 'float'))
+        assert_equal(self.term.is_number(), self.type_ in ('integer', 'float'))
 
     def test_is_pair(self):
         assert_equal(self.term.is_pair(), self.type_ == 'list-pair')
@@ -612,14 +637,18 @@ class CheckTerm():
         assert_equal(self.term.is_variable(), self.type_ == 'variable')
 
     def test_get_atom(self):
-        if self.type_ == 'atom':
+        if self.is_api_atom:
             assert_equal(self.term.get_atom(), self.atom)
         else:
             assert_raises(TypeError, self.term.get_atom)
 
     def test_get_atom_chars(self):
         if self.type_ == 'atom':
-            assert_equal(self.term.get_atom_chars(), self.value)
+            if self.value in (True, False):
+                string_value = str(self.value).lower()
+            else:
+                string_value = self.value
+            assert_equal(self.term.get_atom_chars(), string_value)
         else:
             assert_raises(TypeError, self.term.get_atom_chars)
 
@@ -633,7 +662,10 @@ class CheckTerm():
         self.check_value_string(self.term.get_chars())
 
     def test_get_integer(self):
-        if self.is_integer_like:
+        if self.is_pointer:
+            # No promise about value, but should complete successfully
+            int(self.term)
+        elif self.is_integer_like:
             assert_equal(self.term.get_integer(), int(self.value))
         else:
             assert_raises(TypeError, self.term.get_integer)
@@ -647,7 +679,7 @@ class CheckTerm():
     def test_get_pointer(self):
         if self.pointer_value is not None:
             assert_equal(self.term.get_pointer(), self.pointer_value)
-        elif self.type_ == 'integer':
+        elif self.is_integer_like:
             # Result of interpreting non-pointer integer as pointer is
             # unspecified.
             pass
@@ -655,7 +687,7 @@ class CheckTerm():
             assert_raises(TypeError, self.term.get_pointer)
 
     def test_get_functor(self):
-        if self.is_compound:
+        if self.is_compound or self.is_api_atom:
             assert_equal(self.term.get_functor(), self.functor)
         else:
             assert_raises(TypeError, self.term.get_functor)
@@ -681,7 +713,7 @@ class CheckTerm():
 
 class TestVariableTerm(CheckTerm):
     def __init__(self):
-        super().__init__(type_='variable')
+        super().__init__(type_='variable', prolog_string='%v')
 
     def setup(self):
         self.term = Term()
@@ -690,7 +722,230 @@ class TestVariableTerm(CheckTerm):
         term_str = str(self.term)
         assert term_str[0] == '_' or term_str[0].isupper()
 
-# TODO: Test cyclic term
-# TODO: Test [] atom
-# TODO: Test true & false atoms
-# TODO: Test pointer
+
+class CheckAtomTerm(CheckTerm):
+    def __init__(self, name, prolog_string=None, value=None, term=None):
+        atom = Atom(name)
+        super().__init__(
+            type_='atom',
+            value=(name if value is None else value),
+            prolog_string=(name if prolog_string is None else prolog_string),
+            atom=atom,
+            functor=Functor(atom, 0))
+        self.term = Term.from_atom(atom) if term is None else term
+
+
+class TestAtom_LowerCase(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('foo')
+
+
+class TestAtom_EmptyName(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('', "''")
+
+
+class TestAtom_TitleCase(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('Foo', "'Foo'")
+
+
+class TestAtom_Underscore(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('_foo', "'_foo'")
+
+
+class TestAtom_SquareBrackets(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('[]', "'[]'")
+
+
+class TestAtom_BoolTrue(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('true', value=True, term=Term.from_bool(True))
+
+
+class TestAtom_BoolFalse(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('false', value=False, term=Term.from_bool(False))
+
+
+class TestNil(CheckTerm):
+    def __init__(self):
+        atom = Atom('[]')
+        super().__init__(type_='nil', value=None, prolog_string='[]',
+                         atom=atom, functor=Functor(atom, 0))
+        self.term = Term.from_nil()
+
+
+class TestAtom_FromName_LowerCase(CheckAtomTerm):
+    def __init__(self):
+        super().__init__('atom', term=Term.from_atom_name('atom'))
+
+
+class CheckStringTerm(CheckTerm):
+    def __init__(self, string):
+        super().__init__(
+            type_='string', value=string,
+            prolog_string='"{}"'.format(string.replace('"', '""')))
+        self.term = Term.from_string(string)
+
+
+class TestString(CheckStringTerm):
+    def __init__(self):
+        super().__init__('foo')
+
+
+class TestString_Empty(CheckStringTerm):
+    def __init__(self):
+        super().__init__('')
+
+
+class TestString_DoubleQuote(CheckStringTerm):
+    def __init__(self):
+        super().__init__('"')
+
+
+class TestString_SingleDoubleQuotes(CheckStringTerm):
+    def __init__(self):
+        super().__init__('a\'pp""le')
+
+
+class CheckIntegerTerm(CheckTerm):
+    def __init__(self, value):
+        super().__init__(type_='integer', value=value,
+                         prolog_string=str(value))
+        self.term = Term.from_integer(value)
+
+
+class TestInteger_Positive(CheckIntegerTerm):
+    def __init__(self):
+        super().__init__(100)
+
+
+class TestInteger_Zero(CheckIntegerTerm):
+    def __init__(self):
+        super().__init__(0)
+
+
+class TestInteger_Negative(CheckIntegerTerm):
+    def __init__(self):
+        super().__init__(-1)
+
+
+class CheckFloatTerm(CheckTerm):
+    def __init__(self, value, prolog_string=None, **kwargs):
+        super().__init__(type_='float', value=value,
+                         prolog_string=(str(value) if prolog_string is None
+                                        else prolog_string),
+                         **kwargs)
+        self.term = Term.from_float(value)
+
+
+class TestFloat_1(CheckFloatTerm):
+    def __init__(self):
+        super().__init__(1.0, is_integer_like=True)
+
+
+class TestFloat_2_3(CheckFloatTerm):
+    def __init__(self):
+        super().__init__(2.3)
+
+
+class TestFloat_n10_3333(CheckFloatTerm):
+    def __init__(self):
+        super().__init__(-10.333)
+
+
+class TestFloat_123456789_456789(CheckFloatTerm):
+    def __init__(self):
+        super().__init__(123456789.456789)
+
+
+class TestFloat_NaN(CheckFloatTerm):
+    def __init__(self):
+        super().__init__(float('NaN'), "'$NaN'")
+
+
+class CheckListTerm(CheckTerm):
+    def __init__(self, prolog_string, **kwargs):
+        super().__init__(type_='list-pair',
+                         prolog_string=prolog_string,
+                         functor=Functor('[|]', 2),
+                         **kwargs)
+
+
+class TestList_Variables(CheckListTerm):
+    """Empty list pair, both halves contain variables."""
+    def __init__(self):
+        super().__init__('[%v|%v]', is_ground=False)
+        self.term = Term.from_list()
+
+
+class TestList_1(CheckListTerm):
+    """The 1-element list: [1]"""
+    def __init__(self):
+        super().__init__('[1]')
+        self.term = Term.from_list()
+        self.term.unify_arg(0, Term.from_integer(1))
+        self.term.unify_arg(1, Term.from_nil())
+
+
+class TestList_1_2(CheckListTerm):
+    """The 2-element list: [1, a]"""
+    def __init__(self):
+        super().__init__("[1,a]")
+        tail = Term.from_list()
+        tail.unify_arg(0, Term.from_atom_name('a'))
+        tail.unify_arg(1, Term.from_nil())
+        self.term = Term.from_list()
+        self.term.unify_arg(0, Term.from_integer(1))
+        self.term.unify_arg(1, tail)
+
+
+class TestList_Invalid(CheckListTerm):
+    """An invalid list with no terminator."""
+    def __init__(self):
+        super().__init__("[1|2]")
+        self.term = Term.from_list()
+        self.term.unify_arg(0, Term.from_integer(1))
+        self.term.unify_arg(1, Term.from_integer(2))
+
+
+class TestList_Circular(CheckListTerm):
+    """A circular list where the 2nd term in the list pair is the original list
+    pair."""
+    def __init__(self):
+        super().__init__('@(%v,[%v=[5|%v]])', is_acyclic=False)
+        self.term = Term.from_list()
+        self.term.unify_arg(0, Term.from_integer(5))
+        self.term.unify_arg(1, self.term)
+
+
+class TestPutListChars(CheckListTerm):
+    """A list of ascii characters constructed from a list of bytes."""
+    def __init__(self):
+        super().__init__("['F',o,o]")
+        self.term = Term.from_list_chars('Foo'.encode('ascii'))
+
+
+class TestPutConsList_bar(CheckListTerm):
+    def __init__(self):
+        super().__init__('[bar]')
+        self.term = Term.from_cons_list(Term.from_atom_name('bar'),
+                                        Term.from_nil())
+
+
+class TestPutParsedList(CheckListTerm):
+    def __init__(self):
+        super().__init__('[-1,2,a,3.4]')
+        self.term = Term.from_parsed('[-1,2,a,3.4]')
+
+
+class TestPointer(CheckTerm):
+    def __init__(self):
+        # Pointer needs to be a valid pointer. Get one using ctypes
+        pointer = ctypes.addressof(ctypes.c_int())
+        super().__init__(type_='integer', value=pointer,
+                         prolog_string=str(pointer), is_pointer=True)
+        self.term = Term.from_pointer(pointer)
