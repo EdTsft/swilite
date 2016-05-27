@@ -187,7 +187,8 @@ def check_predicate(name, arity, module=None, predicate=None):
         print(repr(module_str))
         check_predicate(name=name, arity=arity, module=module,
                         predicate=Predicate.from_name_arity(
-                            name=str(name), arity=arity, module_name=module_str)
+                            name=str(name), arity=arity,
+                            module_name=module_str)
                         )
         check_predicate(name=name, arity=arity, module=module,
                         predicate=Predicate(
@@ -269,6 +270,7 @@ def test_term_atom():
     assert_equal(foo.type(), 'atom')
     assert_equal(str(foo), 'foo')
 
+
 def test_term__eq__():
     foo = Term.from_atom_name('foo')
     assert foo == foo
@@ -304,6 +306,7 @@ def test_term_variable_assignment():
     X.put_variable()
     assert_true(eq(X, b))
 
+
 def test_term__or__():
     a = Term.from_atom_name('a')
     b = Term.from_atom_name('b')
@@ -316,6 +319,7 @@ def test_term__or__():
     assert X == a or X == b
 
     assert_equal(str(eq(a, a) | eq(a, b)), 'a=a;a=b')
+
 
 def test_term__and__():
     a = Term.from_atom_name('a')
@@ -335,6 +339,7 @@ def test_term__and__():
     assert_false((eq(X, a) & eq(X, b))())
 
     assert_equal(str(eq(a, a) & eq(a, b)), 'a=a,a=b')
+
 
 def test_term_logic():
     true = Term.from_atom_name('true')
@@ -401,6 +406,7 @@ def test_frame_discard():
     assert_not_equal(str(X), '1')
     assert_equal(X.type(), 'variable')
 
+
 def test_frame_rewind():
     X = Term()
     with Frame() as f:
@@ -423,6 +429,7 @@ def test_frame_rewind():
 
     assert_equal(X, Term.from_integer(2))
 
+
 def test_frame_dynamic_database():
     dynamic = Predicate.from_name_arity('dynamic', 1)
     assertz = Predicate.from_name_arity('assertz', 1)
@@ -438,6 +445,7 @@ def test_frame_dynamic_database():
 
     # Frames have no effect on the dynamic database
     assert_true(foo(a)())
+
 
 def test_predicate__call__wrong_number_of_arguments():
     succ = Predicate(Functor('succ', 2))

@@ -3,8 +3,7 @@
 
 from nose.tools import assert_true, assert_false, assert_equal
 
-from swilite.prolog import (Atom, Functor, Term, TermList, Predicate, Query,
-                            Frame)
+from swilite.prolog import (Functor, Term, Predicate, Query, Frame)
 
 # Common terms
 happy = Functor('happy', 1)
@@ -92,7 +91,8 @@ class TestLearnPrologNowCh1(BasicKeywords):
                                self.and_(listens_2_music(vincent),
                                          happy(vincent))))
         self.assertz(self.rule(plays_air_guitar(butch), happy(butch)))
-        self.assertz(self.rule(plays_air_guitar(butch), listens_2_music(butch)))
+        self.assertz(self.rule(plays_air_guitar(butch),
+                               listens_2_music(butch)))
 
         assert_false(plays_air_guitar(vincent)())
         assert_true(plays_air_guitar(butch)())

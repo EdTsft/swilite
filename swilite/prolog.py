@@ -278,8 +278,8 @@ class Atom(HandleWrapper):
     def __eq__(self, other):
         if type(other) is not type(self):
             return NotImplemented
-        # Atoms can be deleted and the handles re-assigned so check name instead
-        # of handle.
+        # Atoms can be deleted and the handles re-assigned so check name
+        # instead of handle.
         return self.get_name() == other.get_name()
 
     def __hash__(self):
@@ -331,7 +331,6 @@ class Functor(HandleWrapper, ConstantHandleToConstantMixIn):
         See `Term.from_cons_functor`.
         """
         return Term.from_cons_functor(self, *args)
-
 
     def get_name(self):
         """The functor's name as an `Atom` object."""
@@ -517,10 +516,9 @@ class Term(HandleWrapper):
         return self.get_chars()
 
     def __repr__(self):
-        return 'Term(handle={handle!r}, type={type!r}, value={value!r})'.format(
-            handle=self._handle,
-            type=self.type(),
-            value=self.get_chars())
+        return ('Term(handle={handle!r}, type={type!r}, value={value!r})'
+                .format(handle=self._handle, type=self.type(),
+                        value=self.get_chars()))
 
     def __eq__(self, other):
         """Check if two terms have the same value. Does not perform unification.
@@ -531,7 +529,6 @@ class Term(HandleWrapper):
             if '_handle' not in str(e):
                 raise
             return NotImplemented
-
 
     def __or__(self, other):
         """Logical OR of two terms."""
@@ -792,7 +789,8 @@ class Term(HandleWrapper):
         name = atom_t()
         arity = c_int()
         self._require_success_expecting_type(
-            PL_get_compound_name_arity(self._handle, byref(name), byref(arity)),
+            PL_get_compound_name_arity(self._handle, byref(name),
+                                       byref(arity)),
             'compound term')
         return self.NameArity(name=name.value, arity=arity.value)
 
@@ -819,8 +817,8 @@ class Term(HandleWrapper):
                 if this term is not compound.
 
         Note: This returns a _new_ term, not a the argument term itself.
-            Therefore, using `put_*` methods on the return value will not change
-            the argument itself, while unification will.
+            Therefore, using `put_*` methods on the return value will not
+            change the argument itself, while unification will.
         """
         t = Term()
         self._require_success(
@@ -1052,9 +1050,9 @@ class Term(HandleWrapper):
         Returns:
             bool: True if the unification was successful
 
-        Even if this returns false, the unification may have partially completed
-        and variables will remain bound. Use with `Frame` to completely undo
-        bindings in the event of failure.
+        Even if this returns false, the unification may have partially
+        completed and variables will remain bound. Use with `Frame` to
+        completely undo bindings in the event of failure.
         """
         return bool(PL_unify(self._handle, term._handle))
 
@@ -1262,14 +1260,15 @@ class Query(object):
         (`arguments`). Each solution is an assignment to variables in
         `arguments` that satisfies the predicate.
 
-        A query behaves statefully. The solutions must be read from `arguments`.
+        A query behaves statefully. The solutions must be read from
+        `arguments`.
 
         Args:
             predicate (Predicate)       : Predicate to query.
             *arguments (Term)           : Terms to pass as arguments to
                 `predicate`.
-            arglist (TermList)          : List of argument terms to `predicate`.
-                Cannot pass both arguments and arglist.
+            arglist (TermList)          : List of argument terms to
+                `predicate`. Cannot pass both arguments and arglist.
             goal_context_module (Module): Context module of the goal.
                 If ``None``, the current context module is used, or ``user`` if
                 there is no context. This only matters for meta_predicates.
@@ -1321,9 +1320,10 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
         """Create an active query. See `Query`
 
         Args:
-            predicate (Predicate)       : Predicate to query.
-            arglist (TermList)          : List of argument terms to `predicate`.
-            goal_context_module (Module): Context module of the goal.
+            predicate (Predicate)        : Predicate to query.
+            arglist (TermList)           : List of argument terms to
+                `predicate`.
+            goal_context_module (Module) : Context module of the goal.
                 If ``None``, the current context module is used, or ``user`` if
                 there is no context. This only matters for meta_predicates.
         """
@@ -1339,7 +1339,8 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
         """Find the next solution, updating `arglist`.
 
         Returns:
-            bool: ``True`` if a solution was found, otherwise returns ``False``.
+            bool: ``True`` if a solution was found, otherwise returns
+                ``False``.
 
         Raises:
             PrologException: If an exception was raised in Prolog.
@@ -1481,16 +1482,15 @@ class Frame(HandleWrapper, TemporaryHandleMixIn):
     2
 
     Warning:
-        Term objects created using the `Term` class constructors after the frame
-        is opened will produce undefined behaviour (likely segfault) if used
-        after the frame is closed, discarded, or rewound.
-        Instead, use the `term()` method to get `Term` objects with proper error
-        handling.
+        Term objects created using the `Term` class constructors after the
+        frame is opened will produce undefined behaviour (likely segfault) if
+        used after the frame is closed, discarded, or rewound.  Instead, use
+        the `term()` method to get `Term` objects with proper error handling.
 
     Warning:
-        While the SWI-Prolog documentation doesn't specifically warn against it,
-        it is probably a bad idea to open and close multiple frames in anything
-        other than stack order.
+        While the SWI-Prolog documentation doesn't specifically warn against
+        it, it is probably a bad idea to open and close multiple frames in
+        anything other than stack order.
 
     Note:
         Frames have no effect on the prolog dynamic database (assertz).
@@ -1547,8 +1547,8 @@ class Frame(HandleWrapper, TemporaryHandleMixIn):
         behaviour, likely a segfault.
 
         Conversely, the `TemporaryTerm` objects returned by this method will
-        produce a catachable Python exception if used after invalidation, rather
-        than immediately terminating the program with a segfault.
+        produce a catachable Python exception if used after invalidation,
+        rather than immediately terminating the program with a segfault.
         """
         term = TemporaryTerm()
         self._associated_terms.append(term)

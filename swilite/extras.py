@@ -1,4 +1,4 @@
-from .prolog import Term, Functor, Atom, Predicate
+from .prolog import Term, Functor, Atom
 
 
 def consult(filename):
@@ -6,6 +6,7 @@ def consult(filename):
     Term.from_cons_functor(
         Functor(Atom('consult'), 1),
         Term.from_atom_name(filename))()
+
 
 def make_list_term(*terms):
     """Combine multiple terms into a single list.
