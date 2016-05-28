@@ -40,7 +40,7 @@ class BasicKeywords():
 class TestLearnPrologNowCh1(BasicKeywords):
     # http://www.learnprolognow.org/lpnpage.php?pagetype=html&pageid=lpn-htmlse1
 
-    def knowledge_database_1(self):
+    def test_knowledge_database_1(self):
         self.dynamic(Term.from_functor(woman))
         self.dynamic(rock_concert)
         self.assertz(woman(mia))
@@ -66,7 +66,7 @@ class TestLearnPrologNowCh1(BasicKeywords):
         assert_true(party())
         assert_false(Term.from_atom_name('rockConcert')())
 
-    def knowledge_database_2(self):
+    def test_knowledge_database_2(self):
         self.dynamic(Term.from_functor(happy))
         self.dynamic(Term.from_functor(listens_2_music))
         self.dynamic(Term.from_functor(plays_air_guitar))
@@ -80,7 +80,7 @@ class TestLearnPrologNowCh1(BasicKeywords):
 
         assert_true(plays_air_guitar(mia)())
 
-    def knowledge_database_3(self):
+    def test_knowledge_database_3(self):
         self.dynamic(Term.from_functor(happy))
         self.dynamic(Term.from_functor(listens_2_music))
         self.dynamic(Term.from_functor(plays_air_guitar))
@@ -88,8 +88,7 @@ class TestLearnPrologNowCh1(BasicKeywords):
         self.assertz(happy(vincent))
         self.assertz(listens_2_music(butch))
         self.assertz(self.rule(plays_air_guitar(vincent),
-                               self.and_(listens_2_music(vincent),
-                                         happy(vincent))))
+                               (listens_2_music(vincent) & happy(vincent))))
         self.assertz(self.rule(plays_air_guitar(butch), happy(butch)))
         self.assertz(self.rule(plays_air_guitar(butch),
                                listens_2_music(butch)))
@@ -97,7 +96,7 @@ class TestLearnPrologNowCh1(BasicKeywords):
         assert_false(plays_air_guitar(vincent)())
         assert_true(plays_air_guitar(butch)())
 
-    def knowledge_database_4(self):
+    def test_knowledge_database_4(self):
         self.retractall(woman(Term()))
         self.retractall(loves(Term(), Term()))
 
@@ -147,7 +146,7 @@ class TestLearnPrologNowCh1(BasicKeywords):
             assert_true((loves(marcellus, X) & woman(X))())
             assert_equal(X, mia)
 
-    def knowledge_database_5(self):
+    def test_knowledge_database_5(self):
         self.retractall(loves(Term(), Term()))
         self.retractall(jealous(Term(), Term()))
 
