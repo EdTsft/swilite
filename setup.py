@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='swilite',
-    version='0.1.1',
+    version='0.2.1',
     author='Eric Langlois',
     author_email='eric@langlois.xyz',
     license='MIT',
