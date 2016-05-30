@@ -485,7 +485,7 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
         """Check that the right number of arguments are given.
 
         Args:
-            arguments (TermList) : List of arguments.
+            arguments (TermList): List of arguments.
 
         Raises:
             ValueError : If the number of arguments does not match
@@ -1039,8 +1039,8 @@ class Term(HandleWrapper):
         makes the term true.
 
         Args:
-            context_module (Module) : Context module of the goal.
-            check (bool)            : Check that the call succeeded.
+            context_module (Module): Context module of the goal.
+            check (bool)           : Check that the call succeeded.
 
         Returns:
             bool: True if the call succeeded.
@@ -1361,10 +1361,10 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
         """Create an active query. See `Query`
 
         Args:
-            predicate (Predicate)        : Predicate to query.
-            arglist (TermList)           : List of argument terms to
-                `predicate`.
-            goal_context_module (Module) : Context module of the goal.
+            predicate (Predicate)       : Predicate to query.
+            arglist (TermList)          : List of argument terms to
+            `predicate`.
+            goal_context_module (Module): Context module of the goal.
                 If ``None``, the current context module is used, or ``user`` if
                 there is no context. This only matters for meta_predicates.
         """
@@ -1415,11 +1415,11 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
                 across solutions.
 
         Yields:
-            Either and `TemporaryTerm` or a `TermRecord` representing the
+            Either `TemporaryTerm` or a `TermRecord` representing the
             value of `term` under a particular solution.
 
-        If `persistent` is ``False``, then `TemporaryTerm` values are yielded,
-        which are invalidated on the next call to `next_solution`.
+            If `persistent` is ``False``, then `TemporaryTerm` values are
+            yielded, which are invalidated on the next call to `next_solution`.
         """
         if persistent:
             return self._term_assignments_persistent(term)
@@ -1478,7 +1478,7 @@ class TermRecord(HandleWrapper):
         """Create a term record.
 
         Args:
-            term (Term) : Term to record.
+            term (Term): Term to record.
         """
         super().__init__(PL_record(term._handle))
 
@@ -1540,7 +1540,7 @@ class Frame(HandleWrapper, TemporaryHandleMixIn):
         """Open the frame.
 
         Args:
-            discard (bool) : If true, __exit__ calls discard() instead of
+            discard (bool): If true, __exit__ calls discard() instead of
                 close().
         """
         super().__init__(handle=PL_open_foreign_frame())
