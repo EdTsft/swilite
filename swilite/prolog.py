@@ -548,12 +548,7 @@ class Term(HandleWrapper):
 
     def __deepcopy__(self, memo):
         """Creates a new Prolog term, copied from the old."""
-        return self.from_term_copy(self)
-
-    @classmethod
-    def from_term_copy(cls, term):
-        """Create a new term as a copy of an existing one."""
-        return cls._from_handle(handle=PL_copy_term_ref(term._handle))
+        return self.from_term(self)
 
     def type(self):
         """Term type as a string.
@@ -981,6 +976,11 @@ class Term(HandleWrapper):
         """Set this term to reference the new term."""
         PL_put_term(self._handle, term._handle)
 
+    @classmethod
+    def from_term(cls, term):
+        """Create a new term as a copy of an existing one."""
+        return cls._from_handle(handle=PL_copy_term_ref(term._handle))
+
     def put_parsed(self, string):
         """Parse `string` as Prolog and place the result in this term.
 
@@ -1193,6 +1193,9 @@ class Term(HandleWrapper):
 def _add_from_method_to_class(klass, put_method_name, put_method):
     suffix = put_method_name[4:]
     from_method_name = 'from_' + suffix
+    if hasattr(klass, from_method_name):
+        raise AttributeError('{} method already exists.'.format(
+            from_method_name))
 
     def from_method(cls, *args, **kwargs):
         new_term = cls()
@@ -1214,7 +1217,14 @@ for put_method_name in dir(Term):
 
     if not callable(put_method):
         continue
-    _add_from_method_to_class(Term, put_method_name, put_method)
+    try:
+        _add_from_method_to_class(Term, put_method_name, put_method)
+    except AttributeError as e:
+        if 'already exists' in str(e):
+            # Don't add if from_ already exists.
+            pass
+        else:
+            raise
 
 
 class TemporaryTerm(Term, TemporaryHandleMixIn):

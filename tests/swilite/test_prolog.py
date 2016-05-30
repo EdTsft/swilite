@@ -564,8 +564,8 @@ class CheckTerm():
         term_copy.put_term(Term())
         assert_not_equal(self.term, term_copy)
 
-    def test_from_term_copy(self):
-        term_copy = Term.from_term_copy(self.term)
+    def test_from_term(self):
+        term_copy = Term.from_term(self.term)
         assert_equal(self.term, term_copy)
         term_copy.put_term(Term())
         assert_not_equal(self.term, term_copy)
