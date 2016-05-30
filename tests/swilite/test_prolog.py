@@ -942,6 +942,16 @@ class TestPutParsedList(CheckListTerm):
         self.term = Term.from_parsed('[-1,2,a,3.4]')
 
 
+class TestPutListTerms(CheckListTerm):
+    def __init__(self):
+        super().__init__('[-1,2,a,3.4]')
+        self.term = Term.from_list_terms([
+            Term.from_integer(-1),
+            Term.from_integer(2),
+            Term.from_atom_name('a'),
+            Term.from_float(3.4)])
+
+
 class TestPointer(CheckTerm):
     def __init__(self):
         # Pointer needs to be a valid pointer. Get one using ctypes

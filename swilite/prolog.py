@@ -278,8 +278,7 @@ class Atom(HandleWrapper):
     def __eq__(self, other):
         if type(other) is not type(self):
             return NotImplemented
-        # Atoms can be deleted and the handles re-assigned so check name
-        # instead of handle.
+        # Atoms can have different handles but the same name.
         return self.get_name() == other.get_name()
 
     def __hash__(self):
@@ -1031,6 +1030,23 @@ class Term(HandleWrapper):
         """Set this term to a list constructed from head and tail."""
         self._require_success(
             PL_cons_list(self._handle, head._handle, tail._handle))
+
+    def put_list_terms(self, terms):
+        """Set this term to a list constructed from a list of terms.
+
+        Args:
+            terms (list): A (python) list of terms.
+        """
+        try:
+            head = terms.pop(0)
+        except IndexError:
+            self.put_nil()
+            return
+
+        tail = Term.from_nil()
+        while terms:
+            tail = Term.from_cons_list(terms.pop(), tail)
+        self.put_cons_list(head, tail)
 
     def __call__(self, context_module=None, check=False):
         """Call term like once(term).
