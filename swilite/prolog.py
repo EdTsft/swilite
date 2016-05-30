@@ -1265,6 +1265,8 @@ class TermList(HandleWrapper):
 
 class Query(object):
     """Prolog Query Context Manager."""
+    _call_predicate = Predicate.from_name_arity('call', 1)
+
     def __init__(self, predicate, *arguments, arglist=None,
                  goal_context_module=None):
         """Prepare a query.
@@ -1300,6 +1302,22 @@ class Query(object):
         self.arglist = arglist
         self.goal_context_module = goal_context_module
         self.active_query = None
+
+    @classmethod
+    def call_term(term, goal_context_module=None):
+        """Prepare a query that will call a single term.
+
+        Args:
+            term (Term)                 : Term to call.
+            goal_context_module (Module): Context module of the goal.
+                If ``None``, the current context module is used, or ``user`` if
+                there is no context. This only matters for meta_predicates.
+
+        See `Query.__init__` for more. Equivalent to:
+        ``Query(Predicate.from_name_arity('call', 1), term)``
+        """
+        return Query(Query._call_predicate, term,
+                     goal_context_module=goal_context_module)
 
     def __enter__(self):
         self.active_query = ActiveQuery(
