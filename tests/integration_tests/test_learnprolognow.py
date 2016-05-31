@@ -244,7 +244,6 @@ class TestLearnPrologNowCh2(BasicKeywords):
         with Frame():
             P = Term()
             expr = horizontal(line(point(_2, _3), P))
-            with Query(self.call, expr) as q:
-                res = list(q.term_assignments(P, True))
+            res = list(Query(self.call, expr).term_assignments(P, True))
             assert_equal(len(res), 1)
             assert_true(res[0].get().unify(point(Term(), _3)))

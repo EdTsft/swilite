@@ -139,7 +139,6 @@ _term_type_code_name = {
 }
 
 __all__ = [
-    'ActiveQuery',
     'Atom',
     'Frame',
     'Functor',
@@ -451,7 +450,6 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             arglist = TermList.from_terms(*arguments)
         elif arguments:
             raise ValueError('Cannot provide both "arguments" and "arglist".')
-
         self.check_argument_match(arglist)
         success = bool(PL_call_predicate(
             _get_nullable_handle(goal_context_module),
@@ -1289,7 +1287,7 @@ class TermList(HandleWrapper):
             raise IndexError()
 
 
-class Query(object):
+class Query():
     """Prolog Query Context Manager."""
     _call_predicate = Predicate.from_name_arity('call', 1)
 
@@ -1319,18 +1317,18 @@ class Query(object):
         Only one query can be active at a time, but the query is not activated
         until `__enter__` is called.
         """
-        predicate.check_argument_match(arguments)
-        self.predicate = predicate
         if arglist is None:
             arglist = TermList.from_terms(*arguments)
         elif arguments:
             raise ValueError('Cannot provide both "arguments" and "arglist".')
+        predicate.check_argument_match(arglist)
+        self.predicate = predicate
         self.arglist = arglist
         self.goal_context_module = goal_context_module
         self.active_query = None
 
     @classmethod
-    def call_term(term, goal_context_module=None):
+    def call_term(cls, term, goal_context_module=None):
         """Prepare a query that will call a single term.
 
         Args:
@@ -1342,18 +1340,8 @@ class Query(object):
         See `Query.__init__` for more. Equivalent to:
         ``Query(Predicate.from_name_arity('call', 1), term)``
         """
-        return Query(Query._call_predicate, term,
-                     goal_context_module=goal_context_module)
-
-    def __enter__(self):
-        self.active_query = ActiveQuery(
-            predicate=self.predicate,
-            arglist=self.arglist,
-            goal_context_module=self.goal_context_module)
-        return self.active_query
-
-    def __exit__(self, type, value, traceback):
-        self.active_query.close()
+        return cls(Query._call_predicate, term,
+                   goal_context_module=goal_context_module)
 
     def __str__(self):
         return '{pred}({args})'.format(
@@ -1367,29 +1355,67 @@ class Query(object):
                     arglist=self.arglist,
                     goal_context_module=self.goal_context_module)
 
+    def __enter__(self):
+        self.active_query = _ActiveQuery(self)
+        return self.active_query
 
-class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
+    def __exit__(self, type, value, traceback):
+        self.active_query.close()
+
+    def term_assignments(self, term, persistent):
+        """The value of a term under each solution to the query.
+
+        Iterates over all remaining solutions to the query and, for each
+        solution, yields the current value of `term`.
+
+        Args:
+            term       (Term): The term whose assignments to return.
+            persistent (bool): If True, `TermRecord` objects will be yielded
+                instead of `TemporaryTerm` so that their value persists
+                across solutions.
+
+        Yields:
+            Either `TemporaryTerm` or a `TermRecord` representing the
+            value of `term` under a particular solution.
+
+            If `persistent` is ``False``, then `TemporaryTerm` values are
+            yielded, which are invalidated on the next call to `next_solution`.
+        """
+        if persistent:
+            yield from self._term_assignments_persistent(term)
+        else:
+            yield from self._term_assignments_temporary(term)
+
+    def _term_assignments_persistent(self, term):
+        with self as active_query:
+            while active_query.next_solution():
+                yield TermRecord(term)
+
+    def _term_assignments_temporary(self, term):
+        with self as active_query:
+            while active_query.next_solution():
+                temporary_term = TemporaryTerm.from_term(term)
+                active_query.bind_temporary_term(temporary_term)
+                yield temporary_term
+
+
+class _ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
     """Interface to an active Prolog Query.
 
     Only one query can be active at a time.
     """
-    def __init__(self, predicate, arglist, goal_context_module=None):
+    def __init__(self, query):
         """Create an active query. See `Query`
 
         Args:
-            predicate (Predicate)       : Predicate to query.
-            arglist (TermList)          : List of argument terms to
-            `predicate`.
-            goal_context_module (Module): Context module of the goal.
-                If ``None``, the current context module is used, or ``user`` if
-                there is no context. This only matters for meta_predicates.
+            query (Query) : Query to activate.
         """
-        predicate.check_argument_match(arglist)
+        self._query = query
         super().__init__(handle=PL_open_query(
-            _get_nullable_handle(goal_context_module),
+            _get_nullable_handle(query.goal_context_module),
             PL_Q_NODEBUG | PL_Q_CATCH_EXCEPTION,
-            predicate._handle,
-            arglist._handle))
+            query.predicate._handle,
+            query.arglist._handle))
         self._bound_temporary_terms = []
 
     def next_solution(self):
@@ -1418,40 +1444,6 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
                 raise PrologException(Term._from_handle(exception_term))
         return success
 
-    def term_assignments(self, term, persistent):
-        """The value of a term under each solution to the query.
-
-        Iterates over all remaining solutions to the query and, for each
-        solution, yields the current value of `term`.
-
-        Args:
-            term       (Term): The term whose assignments to return.
-            persistent (bool): If True, `TermRecord` objects will be yielded
-                instead of `TemporaryTerm` so that their value persists
-                across solutions.
-
-        Yields:
-            Either `TemporaryTerm` or a `TermRecord` representing the
-            value of `term` under a particular solution.
-
-            If `persistent` is ``False``, then `TemporaryTerm` values are
-            yielded, which are invalidated on the next call to `next_solution`.
-        """
-        if persistent:
-            return self._term_assignments_persistent(term)
-        else:
-            return self._term_assignments_temporary(term)
-
-    def _term_assignments_persistent(self, term):
-        while self.next_solution():
-            yield TermRecord(term)
-
-    def _term_assignments_temporary(self, term):
-        while self.next_solution():
-            temporary_term = TemporaryTerm.from_term_copy(term)
-            self.bind_temporary_term(temporary_term)
-            yield temporary_term
-
     def bind_temporary_term(self, term):
         """Bind a temporary term to the current solution state of this query.
 
@@ -1473,8 +1465,12 @@ class ActiveQuery(HandleWrapper, TemporaryHandleMixIn):
         PL_close_query(self._handle)
         self._invalidate()
 
+    def __str__(self):
+        return str(self._query)
+
     def __repr__(self):
-        return 'ActiveQuery(handle_={handle!r})'.format(handle=self._handle)
+        return ('_ActiveQuery(query={query!r}, _handle={handle!r})'.format(
+            query=self._query, _handle=self._handle))
 
 
 def _get_nullable_handle(handle_wrapper):

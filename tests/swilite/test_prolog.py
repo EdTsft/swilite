@@ -4,10 +4,11 @@ import math
 import re
 
 from nose.tools import (assert_equal, assert_not_equal, assert_raises,
-                        assert_false, assert_true, assert_regex)
+                        assert_false, assert_true, assert_regex,
+                        assert_is_instance)
 
 from swilite.prolog import (Atom, CallError, Functor, Module, Predicate, Term,
-                            TermList, Frame)
+                            TermList, Frame, Query, TemporaryTerm)
 
 
 def check_atom(name, atom=None):
@@ -508,6 +509,12 @@ class CheckTerm():
         self.is_boolean_atom = (self.type_ == 'atom' and
                                 self.value in (True, False))
 
+    def setup(self):
+        self._frame = Frame()
+
+    def teardown(self):
+        self._frame.discard()
+
     def check_value_string(self, term_string):
         if self.is_pointer:
             return
@@ -713,6 +720,7 @@ class TestVariableTerm(CheckTerm):
         super().__init__(type_='variable', prolog_string='%v')
 
     def setup(self):
+        super().setup()
         self.term = Term()
 
     def test__str__(self):
@@ -956,3 +964,85 @@ class TestPointer(CheckTerm):
         super().__init__(type_='integer', value=pointer,
                          prolog_string=str(pointer), is_pointer=True)
         self.term = Term.from_pointer(pointer)
+
+
+def _make_query__init__(var):
+    eq = Functor('=', 2)
+    or_ = Predicate(Functor(';', 2))
+    return Query(or_, eq(var, Term.from_integer(1)),
+                 eq(var, Term.from_integer(2)))
+
+
+def _make_query__init__arglist(var):
+    eq = Functor('=', 2)
+    or_ = Predicate(Functor(';', 2))
+    args = TermList(2)
+    args[0].put_cons_functor(eq, var, Term.from_integer(1))
+    args[1].put_cons_functor(eq, var, Term.from_integer(2))
+    return Query(or_, arglist=args)
+
+
+def _make_query_call_term(var):
+    eq = Functor('=', 2)
+    or_ = Functor(';', 2)
+    return Query.call_term(or_(eq(var, Term.from_integer(1)),
+                               eq(var, Term.from_integer(2))))
+
+
+def _evaluate_query_term_assignments_not_persistent(query, var):
+    assignments = query.term_assignments(var, persistent=False)
+    first = next(assignments)
+    assert_is_instance(first, TemporaryTerm)
+    assert_true(first.is_integer())
+    assert_equal(int(first), 1)
+
+    second = next(assignments)
+    with assert_raises(AttributeError):
+        int(first)
+
+    assert_is_instance(second, TemporaryTerm)
+    assert_true(second.is_integer())
+    assert_equal(int(second), 2)
+
+    with assert_raises(StopIteration):
+        next(assignments)
+
+
+def _evaluate_query_term_assignments_persistent(query, var):
+    assignments = list(query.term_assignments(var, persistent=True))
+    assert_equal(len(assignments), 2)
+    assert_equal(assignments[0].get(), Term.from_integer(1))
+    assert_equal(assignments[1].get(), Term.from_integer(2))
+
+
+def _evaluate_query_term_next_solution(query, var):
+    with query as active_query:
+        assert_true(active_query.next_solution())
+        assert_equal(var, Term.from_integer(1))
+        assert_true(active_query.next_solution())
+        assert_equal(var, Term.from_integer(2))
+        assert_false(active_query.next_solution())
+
+
+def check_query(constructor, evaluator):
+    with Frame():
+        var = Term()
+        query = constructor(var)
+        evaluator(query, var)
+
+
+def test_query():
+    constructors = (
+        _make_query__init__arglist,
+        _make_query__init__,
+        _make_query_call_term,
+    )
+    evaluators = (
+        _evaluate_query_term_assignments_persistent,
+        _evaluate_query_term_assignments_not_persistent,
+        _evaluate_query_term_next_solution,
+    )
+
+    for constructor in constructors:
+        for evaluator in evaluators:
+            yield check_query, constructor, evaluator
