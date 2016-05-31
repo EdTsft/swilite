@@ -601,9 +601,6 @@ class CheckTerm():
             assert_true(self.term.is_functor(self.functor))
 
             name, arity = self.term.get_name_arity()
-            print('term', self.term)
-            print('name', name, type(name))
-            print('arity', arity)
             assert_true(self.term.is_functor(Functor(name, arity)))
             assert_false(self.term.is_functor(
                 Functor(name.get_name() + '_', arity)))
