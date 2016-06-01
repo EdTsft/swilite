@@ -356,6 +356,14 @@ def test_term_logic():
     assert_false((false & (false | true))())
 
 
+def test_term_put_cons_functor_high_arity():
+    with Frame():
+        # PL_cons_functor segfaults with > 4 arguments
+        Functor('foo', 5)(Term(), Term(), Term(), Term(), Term())
+        Functor('foo', 8)(Term(), Term(), Term(), Term(), Term(), Term(),
+                          Term(), Term())
+
+
 def test_frame_close():
     f1 = Frame()
     t1 = f1.term()

@@ -1008,6 +1008,11 @@ class Term(HandleWrapper):
         if not all(isinstance(arg, Term) for arg in args):
             raise TypeError(
                 'All arguments after `functor` must be `Term` objects.')
+
+        if len(args) > 4:
+            # PL_cons_functor segfaults when passed > 4 arguments
+            return self.put_cons_functor_v(functor, TermList.from_terms(*args))
+
         self._require_success(
             PL_cons_functor(self._handle, functor._handle,
                             *[arg._handle for arg in args]))
