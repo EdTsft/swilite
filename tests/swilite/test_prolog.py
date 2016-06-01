@@ -646,15 +646,15 @@ class CheckTerm():
         else:
             assert_raises(TypeError, self.term.get_atom)
 
-    def test_get_atom_chars(self):
+    def test_get_atom_name(self):
         if self.type_ == 'atom':
             if self.value in (True, False):
                 string_value = str(self.value).lower()
             else:
                 string_value = self.value
-            assert_equal(self.term.get_atom_chars(), string_value)
+            assert_equal(self.term.get_atom_name(), string_value)
         else:
-            assert_raises(TypeError, self.term.get_atom_chars)
+            assert_raises(TypeError, self.term.get_atom_name)
 
     def test_get_string_chars(self):
         if self.type_ == 'string':

@@ -691,7 +691,7 @@ class Term(HandleWrapper):
             'atom')
         return Atom._from_handle(a.value)
 
-    def get_atom_chars(self):
+    def get_atom_name(self):
         """The value of this term as a string, if it is a prolog atom."""
         s = POINTER(c_char)()
         length = c_size_t()
