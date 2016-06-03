@@ -144,7 +144,9 @@ __all__ = [
     'Functor',
     'Module',
     'Predicate',
+    'PrologCallFailed',
     'PrologException',
+    'PrologMemoryError',
     'Query',
     'Term',
     'TermList',
@@ -165,7 +167,7 @@ class PrologException(Exception):
         return 'PrologException({!r})'.format(self.exception_term)
 
 
-class CallError(Exception):
+class PrologCallFailed(RuntimeError):
     """A call failed."""
     def __init__(self, msg):
         super().__init__()
@@ -443,8 +445,8 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             bool: True if a binding for `arguments` was found.
 
         Raises:
-            PrologException: If an exception was raised in Prolog.
-            CallError      : If the call failed and `check` is ``True``.
+            PrologException : If an exception was raised in Prolog.
+            PrologCallFailed: If the call failed and `check` is ``True``.
         """
         if arglist is None:
             arglist = TermList.from_terms(*arguments)
@@ -458,7 +460,7 @@ class Predicate(HandleWrapper, ConstantHandleToConstantMixIn):
             arglist._handle))
 
         if check and not success:
-            raise CallError(str(self))
+            raise PrologCallFailed(str(self))
         return success
 
     Info = namedtuple('Info', ['name', 'arity', 'module'])
@@ -1065,12 +1067,12 @@ class Term(HandleWrapper):
             bool: True if the call succeeded.
 
         Raises:
-            CallError: If the call failed and `check` is ``True``.
+            PrologCallFailed: If the call failed and `check` is ``True``.
         """
         success = bool(PL_call(self._handle,
                                _get_nullable_handle(context_module)))
         if check and not success:
-            raise CallError(str(self))
+            raise PrologCallFailed(str(self))
         return success
 
     def unify(self, term):
