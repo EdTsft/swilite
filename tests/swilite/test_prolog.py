@@ -7,8 +7,8 @@ from nose.tools import (assert_equal, assert_not_equal, assert_raises,
                         assert_false, assert_true, assert_regex,
                         assert_is_instance)
 
-from swilite.prolog import (Atom, CallError, Functor, Module, Predicate, Term,
-                            TermList, Frame, Query, TemporaryTerm)
+from swilite.prolog import (Atom, PrologCallFailed, Functor, Module, Predicate,
+                            Term, TermList, Frame, Query, TemporaryTerm)
 
 
 def check_atom(name, atom=None):
@@ -249,7 +249,7 @@ def check_predicate_call_succ(a, b, check, variable):
         result = succ(arglist=args)
         assert_equal(result, variable != 'none' or (a + 1) == b)
     elif variable == 'none' and (a + 1) != b:
-        with assert_raises(CallError):
+        with assert_raises(PrologCallFailed):
             succ(arglist=args, check=True)
     else:
         succ(arglist=args, check=True)
